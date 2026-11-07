@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>Connect p2gift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f4ef; --surface:#fffdf8; --surface2:#efeae0; --ink:#171a1f; --muted:#5c6470;
+    --line:#ddd6c7; --accent:#0f766e; --accent-ink:#ffffff; --accent-soft:#d9ebe6;
+    --code-bg:#171a1f; --code-ink:#e8f5f1;
+    --msg-bg:#efeae0; --msg-ink:#171a1f;
+    --shadow:0 1px 2px rgba(23,26,31,.06),0 8px 24px rgba(23,26,31,.06);
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#121417; --surface:#1a1d21; --surface2:#22262c; --ink:#eceae4; --muted:#a7adb8;
+      --line:#333842; --accent:#2dd4bf; --accent-ink:#06231f; --accent-soft:#173d38;
+      --code-bg:#0b0d0f; --code-ink:#d7f3ec;
+      --msg-bg:#22262c; --msg-ink:#eceae4;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:28px 20px 56px}
+  h1{font-size:clamp(28px,4.6vw,40px);line-height:1.1;letter-spacing:-.02em;margin:0 0 10px;font-weight:700}
+  p{margin:0 0 12px}
+  .lede{font-size:16.5px;color:var(--muted);max-width:62ch}
+  /* endpoint card — stays black */
+  .endpoint{margin-top:18px;background:var(--code-bg);color:var(--code-ink);border-radius:var(--radius);padding:18px 20px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+  .endpoint .label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.65;font-weight:600}
+  .endpoint .url{font-family:"IBM Plex Mono",monospace;font-size:clamp(15px,2.6vw,19px);font-weight:600;word-break:break-all}
+  button{font:inherit;cursor:pointer}
+  .copy-btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:9px;padding:10px 16px;font-weight:600;font-size:14px;white-space:nowrap}
+  .copy-btn:active{transform:translateY(1px)}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* steps panel */
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;margin-top:18px}
+  .panel-head{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:6px}
+  .panel-head h2{font-size:19px;margin:0;letter-spacing:-.015em;line-height:1.25}
+  .badge{display:inline-block;font-size:12.5px;font-weight:700;background:var(--accent-soft);color:var(--ink);border-radius:999px;padding:4px 12px;white-space:nowrap}
+  ol.steps{list-style:none;counter-reset:step;margin:0;padding:0;display:grid;gap:0}
+  ol.steps li{counter-increment:step;display:grid;grid-template-columns:38px 1fr;gap:12px;padding:12px 0;border-bottom:1px dashed var(--line)}
+  ol.steps li:last-child{border-bottom:0}
+  ol.steps li::before{content:counter(step);width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin-top:1px}
+  ol.steps .t{font-weight:600}
+  ol.steps p{margin:2px 0 0;color:var(--muted);font-size:14.5px}
+  /* example chat prompts — light, non-black background */
+  .msg{margin-top:10px;background:var(--msg-bg);color:var(--msg-ink);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .msg pre{margin:0 0 12px;font-family:"IBM Plex Mono",monospace;font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  .msg .copy-btn{padding:8px 14px;font-size:13.5px}
+  @media (max-width:760px){
+    .wrap{padding:20px 14px 48px}
+    .panel{padding:16px}
+    .endpoint{padding:16px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .toast{transition:none}
+  }
+
+  .kbd{font-family:"IBM Plex Mono",monospace;font-size:.92em;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;overflow-wrap:anywhere}
+  .shortcut{margin-top:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:var(--accent-soft);border:1px solid var(--line);border-radius:var(--radius);padding:14px 18px}
+  .shortcut .s-text{font-size:14.5px;max-width:52ch}
+  .shortcut .s-text b{display:block;font-size:15.5px}
+  .open-btn{display:inline-block;background:var(--ink);color:var(--bg);text-decoration:none;border-radius:9px;padding:11px 18px;font-weight:600;font-size:14.5px;white-space:nowrap}
+  .open-btn:active{transform:translateY(1px)}
+  .tabs{display:flex;gap:8px;margin-top:18px}
+  .tab{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 16px;font-weight:700;font-size:16px;color:var(--muted)}
+  .tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .tab small{display:block;font-weight:500;font-size:13px;opacity:.75;margin-top:2px}
+  .tab-panel[hidden]{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Connect p2gift</h1>
+  <p class="lede">Connect p2gift in Muse or Claude — one time only. After that, p2gift stays connected in every chat. Pick your assistant below. ChatGPT is not supported for p2gift.</p>
+
+  <div class="endpoint" role="group" aria-label="p2gift MCP endpoint">
+    <div>
+      <div class="label">Server URL</div>
+      <div class="url">https://p2gift.keeg.uk/mcp</div>
+    </div>
+    <button class="copy-btn" id="copyUrl" type="button">Copy endpoint</button>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Choose your assistant">
+    <button class="tab" id="tab-muse" role="tab" aria-selected="true" aria-controls="panel-muse" type="button">Muse<small>2 steps · send a message</small></button>
+    <button class="tab" id="tab-claude" role="tab" aria-selected="false" aria-controls="panel-claude" type="button">Claude<small>3 steps · Connectors settings</small></button>
+  </div>
+
+  <div class="tab-panel" id="panel-muse" role="tabpanel" aria-labelledby="tab-muse">
+
+<div class="panel">
+    <div class="panel-head">
+      <h2>Initial Connect</h2>
+      <span class="badge">One-time · 2 steps</span>
+    </div>
+    <ol class="steps">
+      <li><div><span class="t">Copy the server URL</span><p>Tap <b>Copy endpoint</b> above.</p></div></li>
+      <li><div><span class="t">Send Muse this message</span><p>Paste it into a new Muse chat, exactly as written:</p>
+        <div class="msg">
+          <pre id="promptText">Build a custom connector to p2gift. Its MCP server is https://p2gift.keeg.uk/mcp — a remote MCP server over Streamable HTTP. Connect to it, list every tool it gives you, test it end to end, and save the integration as a reusable skill so you can use it in any future conversation.</pre>
+          <button class="copy-btn" id="copyPrompt" type="button">Copy message</button>
+        </div></div></li>
+    </ol>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>After that</h2>
+      <span class="badge">Use it · remove it</span>
+    </div>
+    <ol class="steps">
+      <li><div><span class="t">Use it in any Muse chat</span><p>Start a new chat and just name p2gift:</p>
+        <div class="msg">
+          <pre id="useText">Use p2gift: turn this pitch into a gift keepsake.</pre>
+          <button class="copy-btn" id="copyUse" type="button">Copy message</button>
+        </div></div></li>
+      <li><div><span class="t">Remove it any time</span><p>Send Muse this message — it deletes the connector and the saved skill:</p>
+        <div class="msg">
+          <pre id="revokeText">Remove p2gift: delete its connector and its saved skill, and stop using it.</pre>
+          <button class="copy-btn" id="copyRevoke" type="button">Copy message</button>
+        </div></div></li>
+    </ol>
+  </div>
+  </div>
+
+  <div class="tab-panel" id="panel-claude" role="tabpanel" aria-labelledby="tab-claude" hidden>
+
+  <div class="shortcut">
+    <div class="s-text"><b>Fastest way — pre-filled form</b>Opens Claude with the name and server URL already filled in. You just review and confirm — then jump to step 3.</div>
+    <a class="open-btn" href="https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=p2gift&amp;connectorUrl=https%3A%2F%2Fp2gift.keeg.uk%2Fmcp" target="_blank" rel="noopener">Open in Claude →</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Initial Connect</h2>
+      <span class="badge">One-time · 3 steps</span>
+    </div>
+    <ol class="steps">
+      <li><div><span class="t">Open Connectors in Claude</span><p>Go to <span class="kbd">claude.ai</span> → <span class="kbd">Customize</span> → <span class="kbd">Connectors</span> → <span class="kbd">Add custom connector</span>.</p></div></li>
+      <li><div><span class="t">Name it p2gift and paste the server URL</span><p>Name: <span class="kbd">p2gift</span>. Paste the server URL from the card above.</p></div></li>
+      <li><div><span class="t">Add and connect</span><p>Click <span class="kbd">Add</span>, then <span class="kbd">Connect</span>, and sign in if p2gift asks. If Claude notes the values came from an external link, that is expected — confirm to continue.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>After that</h2>
+      <span class="badge">Use it · remove it</span>
+    </div>
+    <ol class="steps">
+      <li><div><span class="t">Use it in any Claude chat</span><p>Open a new chat, tap <span class="kbd">+</span> → <span class="kbd">Connectors</span>, turn on p2gift, and make your request. No need to set it up again.</p></div></li>
+      <li><div><span class="t">Remove it any time</span><p>Go to <span class="kbd">Customize</span> → <span class="kbd">Connectors</span>, open p2gift, and disconnect it.</p></div></li>
+    </ol>
+  </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite">Copied</div>
+
+<script>
+(function(){
+  var MCP_URL = "https://p2gift.keeg.uk/mcp";
+  var toast = document.getElementById('toast');
+  var toastTimer = null;
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 1800);
+  }
+  function copyText(text, msg){
+    function fallback(){
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); showToast(msg); }
+      catch(e){ showToast('Copy failed — select and copy manually'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ showToast(msg); }, fallback);
+    } else { fallback(); }
+  }
+  document.getElementById('copyUrl').addEventListener('click', function(){ copyText(MCP_URL, 'Server URL copied'); });
+  function bind(id, textId, msg){
+    var b = document.getElementById(id);
+    if (b) b.addEventListener('click', function(){ copyText(document.getElementById(textId).textContent.trim(), msg); });
+  }
+  bind('copyPrompt', 'promptText', 'Message copied — paste it into Muse');
+  bind('copyUse', 'useText', 'Message copied — paste it into any Muse chat');
+  bind('copyRevoke', 'revokeText', 'Message copied — paste it into Muse to remove p2gift');
+  var tabMuse = document.getElementById('tab-muse');
+  var tabClaude = document.getElementById('tab-claude');
+  var panelMuse = document.getElementById('panel-muse');
+  var panelClaude = document.getElementById('panel-claude');
+  function select(which){
+    var muse = which === 'muse';
+    tabMuse.setAttribute('aria-selected', muse ? 'true' : 'false');
+    tabClaude.setAttribute('aria-selected', muse ? 'false' : 'true');
+    panelMuse.hidden = !muse;
+    panelClaude.hidden = muse;
+  }
+  tabMuse.addEventListener('click', function(){ select('muse'); });
+  tabClaude.addEventListener('click', function(){ select('claude'); });
+  // Deep link: #claude opens the Claude tab
+  if (location.hash === '#claude') select('claude');
+})();
+</script>
+</body>
+</html>
