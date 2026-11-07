@@ -73,18 +73,13 @@
   .shortcut .s-text b{display:block;font-size:15.5px}
   .open-btn{display:inline-block;background:var(--ink);color:var(--bg);text-decoration:none;border-radius:9px;padding:11px 18px;font-weight:600;font-size:14.5px;white-space:nowrap}
   .open-btn:active{transform:translateY(1px)}
-  .tabs{display:flex;gap:8px;margin-top:18px}
-  .tab{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 16px;font-weight:700;font-size:16px;color:var(--muted)}
-  .tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-  .tab small{display:block;font-weight:500;font-size:13px;opacity:.75;margin-top:2px}
-  .tab-panel[hidden]{display:none}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <h1>Connect p2gift</h1>
-  <p class="lede">Connect p2gift in Muse or Claude — plus the FLUX.1 image tool for mockups in Claude — one time only. After that, they stay connected in every chat. Pick your assistant below. ChatGPT is not supported for p2gift.</p>
+  <p class="lede">Connect p2gift in Muse — one time only. After that, it stays connected in every chat. You&rsquo;ll need your p2gift API key &mdash; p2gift sends it to you directly.</p>
 
   <div class="endpoint" role="group" aria-label="p2gift MCP endpoint">
     <div>
@@ -94,25 +89,21 @@
     <button class="copy-btn" id="copyUrl" type="button">Copy endpoint</button>
   </div>
 
-  <div class="tabs" role="tablist" aria-label="Choose your assistant">
-    <button class="tab" id="tab-muse" role="tab" aria-selected="true" aria-controls="panel-muse" type="button">Muse<small>2 steps · send a message</small></button>
-    <button class="tab" id="tab-claude" role="tab" aria-selected="false" aria-controls="panel-claude" type="button">Claude<small>3 steps · Connectors settings</small></button>
-  </div>
-
-  <div class="tab-panel" id="panel-muse" role="tabpanel" aria-labelledby="tab-muse">
-
 <div class="panel">
     <div class="panel-head">
       <h2>Initial Connect</h2>
-      <span class="badge">One-time · 2 steps</span>
+      <span class="badge">One-time · 3 steps</span>
     </div>
     <ol class="steps">
       <li><div><span class="t">Copy the server URL</span><p>Tap <b>Copy endpoint</b> above.</p></div></li>
-      <li><div><span class="t">Send Muse this message</span><p>Paste it into a new Muse chat, exactly as written:</p>
+      <li><div><span class="t">Send Muse this message</span><p>Paste it into a new Muse chat, exactly as written.</p>
         <div class="msg">
-          <pre id="promptText">Build a custom connector to p2gift. Its MCP server is https://p2gift.keeg.uk/mcp — a remote MCP server over Streamable HTTP. Connect to it, list every tool it gives you, test it end to end, and save the integration as a reusable skill so you can use it in any future conversation.</pre>
+          <pre id="promptText">Custom connect to p2gift: https://p2gift.keeg.uk/mcp. (API key required — ask me in secure credentials prompt, then send as an Authorization: Bearer header.)
+
+Connect, save it as a reusable skill, and brief me on the service's features — feature pitches, not a tool list. (If Unauthorized, tell me the key doesn't work and stop.)</pre>
           <button class="copy-btn" id="copyPrompt" type="button">Copy message</button>
         </div></div></li>
+      <li><div><span class="t">Feed in the API key</span><p>When Muse asks for it, paste your key into its secure prompt &mdash; never into the chat. Keep it private; it&rsquo;s yours alone.</p></div></li>
     </ol>
   </div>
 
@@ -133,62 +124,6 @@
           <button class="copy-btn" id="copyRevoke" type="button">Copy message</button>
         </div></div></li>
     </ol>
-  </div>
-  </div>
-
-  <div class="tab-panel" id="panel-claude" role="tabpanel" aria-labelledby="tab-claude" hidden>
-
-  <div class="shortcut">
-    <div class="s-text"><b>Fastest way — pre-filled form</b>Opens Claude with the name and server URL already filled in. You just review and confirm — then jump to step 3.</div>
-    <a class="open-btn" href="https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=p2gift&amp;connectorUrl=https%3A%2F%2Fp2gift.keeg.uk%2Fmcp" target="_blank" rel="noopener">Open in Claude →</a>
-  </div>
-
-  <div class="panel">
-    <div class="panel-head">
-      <h2>Initial Connect</h2>
-      <span class="badge">One-time · 3 steps</span>
-    </div>
-    <ol class="steps">
-      <li><div><span class="t">Open Connectors in Claude</span><p>Go to <span class="kbd">claude.ai</span> → <span class="kbd">Customize</span> → <span class="kbd">Connectors</span> → <span class="kbd">Add custom connector</span>.</p></div></li>
-      <li><div><span class="t">Name it p2gift and paste the server URL</span><p>Name: <span class="kbd">p2gift</span>. Paste the server URL from the card above.</p></div></li>
-      <li><div><span class="t">Add and connect</span><p>Click <span class="kbd">Add</span>, then <span class="kbd">Connect</span>, and sign in if p2gift asks. If Claude notes the values came from an external link, that is expected — confirm to continue.</p></div></li>
-    </ol>
-  </div>
-
-  <div class="panel">
-    <div class="panel-head">
-      <h2>After that</h2>
-      <span class="badge">Use it · remove it</span>
-    </div>
-    <ol class="steps">
-      <li><div><span class="t">Use it in any Claude chat</span><p>Open a new chat, tap <span class="kbd">+</span> → <span class="kbd">Connectors</span>, turn on p2gift, and make your request. No need to set it up again.</p></div></li>
-      <li><div><span class="t">Remove it any time</span><p>Go to <span class="kbd">Customize</span> → <span class="kbd">Connectors</span>, open p2gift, and disconnect it.</p></div></li>
-    </ol>
-  </div>
-
-  <div class="shortcut">
-    <div class="s-text"><b>Fastest way — pre-filled form</b>Opens Claude with the name and server URL already filled in. You just review and confirm — then connect.</div>
-    <a class="open-btn" href="https://claude.ai/customize/connectors?modal=add-custom-connector&amp;connectorName=FLUX.1&amp;connectorUrl=https%3A%2F%2Fhuggingface.co%2Fmcp%3Flogin" target="_blank" rel="noopener">Open in Claude →</a>
-  </div>
-
-  <div class="panel">
-    <div class="panel-head">
-      <h2>Also connect: FLUX.1 image tool</h2>
-      <span class="badge">Claude only</span>
-    </div>
-    <p style="color:var(--muted);font-size:14.5px">Claude can't draw the mockup itself. Connect this free image tool alongside p2gift in Claude, and use both in the same chat — p2gift runs the order, FLUX.1 draws the mockup.</p>
-    <div class="endpoint" role="group" aria-label="Hugging Face MCP endpoint">
-      <div>
-        <div class="label">Server URL</div>
-        <div class="url">https://huggingface.co/mcp?login</div>
-      </div>
-      <button class="copy-btn" id="copyHfUrl" type="button">Copy endpoint</button>
-    </div>
-    <ol class="steps">
-      <li><div><span class="t">Set up Hugging Face</span><p>Create a free account at <span class="kbd">huggingface.co</span>, then in your MCP settings add the image Space <span class="kbd">mcp-tools/FLUX.1-Krea-dev</span>. Free accounts get 5 minutes of image GPU time a day.</p></div></li>
-      <li><div><span class="t">Add it as a custom connector</span><p>Go to <span class="kbd">Customize</span> → <span class="kbd">Connectors</span> → <span class="kbd">Add custom connector</span>, and paste the server URL above.</p></div></li>
-    </ol>
-  </div>
   </div>
 
 </div>
@@ -220,8 +155,6 @@
     } else { fallback(); }
   }
   document.getElementById('copyUrl').addEventListener('click', function(){ copyText(MCP_URL, 'Server URL copied'); });
-  var HF_URL = "https://huggingface.co/mcp?login";
-  document.getElementById('copyHfUrl').addEventListener('click', function(){ copyText(HF_URL, 'Server URL copied'); });
   function bind(id, textId, msg){
     var b = document.getElementById(id);
     if (b) b.addEventListener('click', function(){ copyText(document.getElementById(textId).textContent.trim(), msg); });
@@ -229,21 +162,6 @@
   bind('copyPrompt', 'promptText', 'Message copied — paste it into Muse');
   bind('copyUse', 'useText', 'Message copied — paste it into any Muse chat');
   bind('copyRevoke', 'revokeText', 'Message copied — paste it into Muse to remove p2gift');
-  var tabMuse = document.getElementById('tab-muse');
-  var tabClaude = document.getElementById('tab-claude');
-  var panelMuse = document.getElementById('panel-muse');
-  var panelClaude = document.getElementById('panel-claude');
-  function select(which){
-    var muse = which === 'muse';
-    tabMuse.setAttribute('aria-selected', muse ? 'true' : 'false');
-    tabClaude.setAttribute('aria-selected', muse ? 'false' : 'true');
-    panelMuse.hidden = !muse;
-    panelClaude.hidden = muse;
-  }
-  tabMuse.addEventListener('click', function(){ select('muse'); });
-  tabClaude.addEventListener('click', function(){ select('claude'); });
-  // Deep link: #claude opens the Claude tab
-  if (location.hash === '#claude') select('claude');
 })();
 </script>
 </body>
