@@ -1,0 +1,82 @@
+# Sync repo files to the R2 bucket "p2gift" on push to main.
+#
+# What this workflow does, and does NOT do:
+#   DOES: upload, on every push to main, the files under
+#         connect-example.md + examples/assets/  ->  R2 connect-examples/
+#         inventory/                              ->  R2 inventory/
+#         (only the files that changed in that push are uploaded,
+#         via `git diff --name-only` against the previous commit;
+#         a manual run uploads everything)
+#   DOES NOT: create the R2 bucket. The bucket "p2gift" must already
+#             exist (owner-created). It does not delete files from R2.
+#   DOES NOT: deploy the Worker. That is deploy.yml.
+#
+# Required GitHub repo settings (Settings -> Secrets), same as deploy.yml:
+#   CLOUDFLARE_API_TOKEN  - Workers Scripts: Edit, R2: Edit (or an
+#                           API token with R2 object write)
+#   CLOUDFLARE_ACCOUNT_ID - your Cloudflare account id
+#
+# Note: the token used for Worker deploys may need R2 write permission
+# added before this workflow can upload. If the sync step fails with
+# 403, add R2 object write to that token in Cloudflare, no code change.
+
+name: Sync to R2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "connect-example.md"
+      - "examples/assets/**"
+      - "inventory/**"
+      - ".github/workflows/sync-r2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-r2
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Upload changed files to R2
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FILES=$(find connect-example.md examples/assets inventory -type f 2>/dev/null || true)
+          else
+            FILES=$(git diff --name-only HEAD~1 HEAD -- connect-example.md examples/assets inventory || true)
+          fi
+          if [ -z "$FILES" ]; then
+            echo "No R2 files changed, nothing to upload."
+            exit 0
+          fi
+          echo "$FILES" | while read -r f; do
+            case "$f" in
+              connect-example.md) KEY="connect-examples/connect-example.md" ;;
+              examples/assets/*) KEY="connect-examples/$(basename "$f")" ;;
+              inventory/*) KEY="$f" ;;
+              *) echo "Skipping $f (not an R2 file)"; continue ;;
+            esac
+            echo "Uploading $f -> p2gift/$KEY"
+            npx wrangler r2 object put "p2gift/$KEY" --file "$f" --remote
+          done
