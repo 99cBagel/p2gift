@@ -2,15 +2,19 @@
 // Implements the JSON-RPC surface MCP clients need: initialize,
 // notifications/initialized, tools/list, tools/call, resources/list,
 // resources/read, prompts/list, prompts/get, ping.
-// No auth: the published endpoint is public, as documented in
-// p2gift-wiki. R2 binding P2GIFT_BUCKET (bucket "p2gift") serves the
+// Auth (v0.1.9): /mcp requires a per-customer API key as
+// `Authorization: Bearer <key>`. Keys are issued manually; only their
+// SHA-256 hex digests live in the P2GIFT_KEYS KV namespace (KV key =
+// digest, value = {"customer","created"}). /health and /inventory stay
+// public. A key is never shown on the Connect Guide — it travels
+// privately to each customer. R2 binding P2GIFT_BUCKET (bucket "p2gift") serves the
 // Connect-stage learning example at connect-examples/ — the Worker
 // reads it from R2, it does not embed the images in code.
 import { KI_POOL, suggestKeepsakes } from "./keepsakes.js";
 import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
 
-const SERVER = { name: "p2gift", version: "0.1.8" };
+const SERVER = { name: "p2gift", version: "0.1.9" };
 
 // Connect-stage learning example, stored in R2 bucket "p2gift"
 // under connect-examples/. The agent reads the markdown first,
@@ -100,6 +104,24 @@ function textResult(obj) {
   return { content: [{ type: "text", text: JSON.stringify(obj, null, 2) }] };
 }
 
+// --- API-key auth -------------------------------------------------------
+// Gate for /mcp only. The presented key is hashed (SHA-256) and looked
+// up in P2GIFT_KEYS; a missing KV record means unknown key. The lookup
+// itself is the comparison, so no secret ever sits in code.
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function checkApiKey(request, env) {
+  if (!env?.P2GIFT_KEYS) return "key store not configured";
+  const m = /^Bearer\s+(.+)$/i.exec(request.headers.get("Authorization") ?? "");
+  if (!m) return "missing or malformed Authorization header";
+  const record = await env.P2GIFT_KEYS.get(await sha256Hex(m[1].trim()));
+  if (record === null) return "unknown API key";
+  return null;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -111,7 +133,7 @@ export default {
       return new Response(await obj.text(), { headers: { "content-type": "text/html; charset=utf-8" } });
     }
     if (url.pathname === "/health") {
-      return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, connect_example: "p2gift://connect-examples/connect-example.md" }), {
+      return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "bearer-api-key", connect_example: "p2gift://connect-examples/connect-example.md" }), {
         headers: { "content-type": "application/json" },
       });
     }
@@ -127,6 +149,14 @@ export default {
     }
     if (url.pathname !== "/mcp") return new Response("Not found", { status: 404 });
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+    const authError = await checkApiKey(request, env);
+    if (authError) {
+      return Response.json(
+        error(null, -32001, `Unauthorized (${authError}): this MCP endpoint needs your p2gift API key. Send Authorization: Bearer <your key>.`),
+        { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="p2gift"' } }
+      );
+    }
 
     let body;
     try {
