@@ -1,0 +1,10 @@
+# p2gift — Cloudflare Worker, MCP Streamable HTTP at /mcp
+# Custom domain p2gift.keeg.uk is attached once in the Cloudflare
+# dashboard (Workers -> p2gift -> Settings -> Domains) and persists
+# across deploys. Do not add it to this file.
+name = "p2gift"
+compatibility_date = "2026-11-06"
+main = "src/index.js"
+
+[observability]
+enabled = true

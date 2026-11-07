@@ -1,0 +1,49 @@
+# Deploy p2gift Worker to Cloudflare on push to main.
+#
+# What this workflow does, and does NOT do:
+#   DOES: deploy the Worker (wrangler deploy) to p2gift.keeg.uk/mcp.
+#   DOES NOT: create D1/R2, set secrets, or attach the custom domain.
+#             The domain is attached once in the Cloudflare dashboard
+#             and persists across deploys.
+#   DOES NOT: deploy on pull requests. Merging to main is the gate.
+#
+# Required GitHub repo settings (Settings -> Secrets):
+#   CLOUDFLARE_API_TOKEN  - Workers Scripts: Edit
+#   CLOUDFLARE_ACCOUNT_ID - your Cloudflare account id
+
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Deploy Worker
+        run: npx wrangler deploy
