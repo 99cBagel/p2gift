@@ -104,6 +104,13 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/") {
+      // Landing page: the Connect Guide, served from R2.
+      if (!env?.P2GIFT_BUCKET) return new Response("Connect guide not configured", { status: 503 });
+      const obj = await env.P2GIFT_BUCKET.get("connect/Connect_page_guide.html");
+      if (!obj) return new Response("Connect guide not found in R2", { status: 404 });
+      return new Response(await obj.text(), { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
+    if (url.pathname === "/health") {
       return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, connect_example: "p2gift://connect-examples/connect-example.md" }), {
         headers: { "content-type": "application/json" },
       });
@@ -115,13 +122,8 @@ export default {
       });
     }
     if (url.pathname === "/connect") {
-      // Consolidated Connect guide (Muse + Claude), served from R2.
-      // The repo will go private; this page stays public because it
-      // is served by the deployed Worker, not from GitHub.
-      if (!env?.P2GIFT_BUCKET) return new Response("Connect guide not configured", { status: 503 });
-      const obj = await env.P2GIFT_BUCKET.get("connect/Connect_page_guide.html");
-      if (!obj) return new Response("Connect guide not found in R2", { status: 404 });
-      return new Response(await obj.text(), { headers: { "content-type": "text/html; charset=utf-8" } });
+      // The Connect Guide moved to the root landing page.
+      return Response.redirect(new URL("/", request.url), 301);
     }
     if (url.pathname !== "/mcp") return new Response("Not found", { status: 404 });
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
