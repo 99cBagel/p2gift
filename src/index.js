@@ -10,7 +10,7 @@ import { KI_POOL, suggestKeepsakes } from "./keepsakes.js";
 import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
 
-const SERVER = { name: "p2gift", version: "0.1.7" };
+const SERVER = { name: "p2gift", version: "0.1.8" };
 
 // Connect-stage learning example, stored in R2 bucket "p2gift"
 // under connect-examples/. The agent reads the markdown first,
@@ -113,6 +113,15 @@ export default {
       return new Response(JSON.stringify({ source: inv.source, items: inv.items }), {
         headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
       });
+    }
+    if (url.pathname === "/connect") {
+      // Consolidated Connect guide (Muse + Claude), served from R2.
+      // The repo will go private; this page stays public because it
+      // is served by the deployed Worker, not from GitHub.
+      if (!env?.P2GIFT_BUCKET) return new Response("Connect guide not configured", { status: 503 });
+      const obj = await env.P2GIFT_BUCKET.get("connect/Connect_page_guide.html");
+      if (!obj) return new Response("Connect guide not found in R2", { status: 404 });
+      return new Response(await obj.text(), { headers: { "content-type": "text/html; charset=utf-8" } });
     }
     if (url.pathname !== "/mcp") return new Response("Not found", { status: 404 });
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });

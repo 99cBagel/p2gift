@@ -4,6 +4,7 @@
 #   DOES: upload, on every push to main, the files under
 #         connect-example.md + examples/assets/  ->  R2 connect-examples/
 #         inventory/                              ->  R2 inventory/
+#         connect/                                ->  R2 connect/
 #         (only the files that changed in that push are uploaded,
 #         via `git diff --name-only` against the previous commit;
 #         a manual run uploads everything)
@@ -29,6 +30,7 @@ on:
       - "connect-example.md"
       - "examples/assets/**"
       - "inventory/**"
+      - "connect/**"
       - ".github/workflows/sync-r2.yml"
   workflow_dispatch:
 
@@ -62,9 +64,9 @@ jobs:
         run: |
           set -e
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            FILES=$(find connect-example.md examples/assets inventory -type f 2>/dev/null || true)
+            FILES=$(find connect-example.md examples/assets inventory connect -type f 2>/dev/null || true)
           else
-            FILES=$(git diff --name-only HEAD~1 HEAD -- connect-example.md examples/assets inventory || true)
+            FILES=$(git diff --name-only HEAD~1 HEAD -- connect-example.md examples/assets inventory connect || true)
           fi
           if [ -z "$FILES" ]; then
             echo "No R2 files changed, nothing to upload."
@@ -75,6 +77,7 @@ jobs:
               connect-example.md) KEY="connect-examples/connect-example.md" ;;
               examples/assets/*) KEY="connect-examples/$(basename "$f")" ;;
               inventory/*) KEY="$f" ;;
+              connect/*) KEY="$f" ;;
               *) echo "Skipping $f (not an R2 file)"; continue ;;
             esac
             echo "Uploading $f -> p2gift/$KEY"
