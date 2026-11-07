@@ -19,10 +19,13 @@ export function suggestKeepsakes({ pitch, recipientProfile = null, topicCategory
   const full = pool.filter((k) => k.surface === "full");
   const condensed = pool.filter((k) => k.surface === "condensed");
   const short = pool.filter((k) => k.surface === "short");
+  // Preserve the original variety: first two full-surface items,
+  // then the first condensed item. Fill any missing slot from the
+  // pool in order (e.g. if fewer than 2 full items are available).
   const picked = [];
-  for (const k of [...full, ...condensed, ...short, ...pool]) {
+  for (const k of [full[0], full[1], condensed[0], ...pool, ...short]) {
     if (picked.length >= 3) break;
-    if (!picked.includes(k)) picked.push(k);
+    if (k && !picked.includes(k)) picked.push(k);
   }
   return {
     pitch,

@@ -10,7 +10,7 @@ import { KI_POOL, suggestKeepsakes } from "./keepsakes.js";
 import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
 
-const SERVER = { name: "p2gift", version: "0.1.5" };
+const SERVER = { name: "p2gift", version: "0.1.6" };
 
 // Connect-stage learning example, stored in R2 bucket "p2gift"
 // under connect-examples/. The agent reads the markdown first,
