@@ -1,6 +1,6 @@
 {
   "name": "p2gift",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "PPT-to-Gift Service Worker \u2014 MCP-enabled gifting service (code repo). Work plan and reference live in 99cBagel/p2gift-wiki.",
   "type": "module",
