@@ -85,6 +85,26 @@ p2gift Worker (concepts, steps 1–4)
 - MCP (Streamable HTTP): `https://p2gift.keeg.uk/mcp`
 - Health / info: `GET /` → `{ service: "p2gift", mcp: "/mcp" }`
 
+## Inventory (mini inventory system)
+
+The keepsake pool is **not hardcoded**. It is loaded at call time
+from R2 `inventory/inventory.json` (source file in this repo:
+`inventory/inventory.json`, synced by the Sync to R2 workflow).
+
+- `list_inventory` — available items only (`available=true`).
+- `list_keepsakes` and `service_info` — same available list.
+- `suggest_keepsakes` — picks its 3 concepts only from that
+  available list, in pool order (full, then condensed, then short).
+- `GET /inventory` — public JSON of the same list, for the
+  gift-concept picker page: `{ source, items }`.
+- If R2 is missing, unreadable, or empty, the Worker falls back
+  to the hardcoded 6-item pool and reports
+  `source: "fallback-pool"` — it never shows nothing.
+- To change what is offered: edit `inventory/inventory.json`
+  (set `available` true/false, add or remove an item) and push
+  to `main`. The Sync to R2 workflow uploads it; no Worker
+  redeploy is needed for an inventory change.
+
 ## Connect-stage learning example (R2)
 
 At connect, the assistant reads the skills and one worked example

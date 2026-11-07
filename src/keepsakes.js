@@ -12,21 +12,28 @@ export const KI_POOL = [
 // Dual-Criteria Pick Rule (p2gift-wiki): recipient profile first
 // (only with permission), otherwise topic category. Surface check
 // always applies: the object must bear the pitch text.
-export function suggestKeepsakes({ pitch, recipientProfile = null, topicCategory = null }) {
+// `pool` is the available inventory, loaded from R2 — never the
+// hardcoded pool directly. Three different concepts, in pool order.
+export function suggestKeepsakes({ pitch, recipientProfile = null, topicCategory = null, pool = KI_POOL }) {
   const basis = recipientProfile ? "profile" : "topic";
-  const full = KI_POOL.filter((k) => k.surface === "full");
-  const condensed = KI_POOL.filter((k) => k.surface === "condensed");
-  // Three different concepts from the same pitch, in pool order.
-  // No recipient profile was supplied, so this is a topic pick.
+  const full = pool.filter((k) => k.surface === "full");
+  const condensed = pool.filter((k) => k.surface === "condensed");
+  const short = pool.filter((k) => k.surface === "short");
+  const picked = [];
+  for (const k of [...full, ...condensed, ...short, ...pool]) {
+    if (picked.length >= 3) break;
+    if (!picked.includes(k)) picked.push(k);
+  }
   return {
     pitch,
     selection_basis: basis,
     recipient_profile: recipientProfile,
     topic_category: topicCategory,
-    concepts: [
-      { rank: 1, keepsake: full[0], pitch_text: pitch, fit: "Full pitch fits." },
-      { rank: 2, keepsake: full[1], pitch_text: pitch, fit: "Full pitch fits." },
-      { rank: 3, keepsake: condensed[0], pitch_text: pitch, fit: "Condensed pitch only — tumbler surface fits a shortened pitch." },
-    ],
+    concepts: picked.map((k, i) => ({
+      rank: i + 1,
+      keepsake: k,
+      pitch_text: pitch,
+      fit: k.surface === "full" ? "Full pitch fits." : k.surface === "condensed" ? "Condensed pitch only — surface fits a shortened pitch." : "Short phrase only — surface fits a short keepsake message.",
+    })),
   };
 }

@@ -7,9 +7,10 @@
 // Connect-stage learning example at connect-examples/ — the Worker
 // reads it from R2, it does not embed the images in code.
 import { KI_POOL, suggestKeepsakes } from "./keepsakes.js";
+import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
 
-const SERVER = { name: "p2gift", version: "0.1.4" };
+const SERVER = { name: "p2gift", version: "0.1.5" };
 
 // Connect-stage learning example, stored in R2 bucket "p2gift"
 // under connect-examples/. The agent reads the markdown first,
@@ -82,6 +83,11 @@ const TOOLS = [
     description: "List the current keepsake item pool.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "list_inventory",
+    description: "List the available inventory from R2 inventory/inventory.json — only items with available=true. This is the source suggest_keepsakes picks from.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 function result(id, result) {
@@ -100,6 +106,12 @@ export default {
     if (url.pathname === "/") {
       return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, connect_example: "p2gift://connect-examples/connect-example.md" }), {
         headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.pathname === "/inventory") {
+      const inv = await loadInventory(env);
+      return new Response(JSON.stringify({ source: inv.source, items: inv.items }), {
+        headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
       });
     }
     if (url.pathname !== "/mcp") return new Response("Not found", { status: 404 });
@@ -174,7 +186,8 @@ export default {
       const name = params?.name;
       const args = params?.arguments ?? {};
       if (name === "service_info") {
-        payload = result(id, textResult({ service: "PPT-to-Gift Service Worker", endpoint: "https://p2gift.keeg.uk/mcp", keepsake_pool: KI_POOL }));
+        const inv = await loadInventory(env);
+        payload = result(id, textResult({ service: "PPT-to-Gift Service Worker", endpoint: "https://p2gift.keeg.uk/mcp", inventory_source: inv.source, keepsake_pool: inv.items }));
       } else if (name === "start_order") {
         const session = startOrder(args);
         payload = result(id, textResult({ session, next_step: nextStep(session), steps: STEPS }));
@@ -189,10 +202,17 @@ export default {
           else payload = result(id, textResult(out));
         }
       } else if (name === "list_keepsakes") {
-        payload = result(id, textResult({ keepsakes: KI_POOL }));
+        const inv = await loadInventory(env);
+        payload = result(id, textResult({ source: inv.source, keepsakes: inv.items }));
+      } else if (name === "list_inventory") {
+        const inv = await loadInventory(env);
+        payload = result(id, textResult({ source: inv.source, items: inv.items }));
       } else if (name === "suggest_keepsakes") {
         if (!args.pitch) payload = error(id, -32602, "pitch is required");
-        else payload = result(id, textResult(suggestKeepsakes({ pitch: args.pitch, recipientProfile: args.recipient_profile ?? null, topicCategory: args.topic_category ?? null })));
+        else {
+          const inv = await loadInventory(env);
+          payload = result(id, textResult({ inventory_source: inv.source, ...suggestKeepsakes({ pitch: args.pitch, recipientProfile: args.recipient_profile ?? null, topicCategory: args.topic_category ?? null, pool: inv.items }) }));
+        }
       } else {
         payload = error(id, -32602, `Unknown tool: ${name}`);
       }
