@@ -1,5 +1,7 @@
 // p2gift order workflow — enforced state machine.
-// Steps are taken from Muse Chat Log — Example2 (xDrive run).
+// Steps are taken from the Connect example (Muse Chat Log — Example2).
+// The example is one case only; no case pitch, keepsake, or price is
+// wired into this service — every order supplies its own pitch.
 // No step can be skipped, and no step advances without an explicit
 // user confirmation. The Worker is stateless: the session object is
 // returned to the assistant, which presents it back on the next call.

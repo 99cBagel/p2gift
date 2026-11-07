@@ -10,16 +10,16 @@ import { KI_POOL, suggestKeepsakes } from "./keepsakes.js";
 import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
 
-const SERVER = { name: "p2gift", version: "0.1.6" };
+const SERVER = { name: "p2gift", version: "0.1.7" };
 
 // Connect-stage learning example, stored in R2 bucket "p2gift"
 // under connect-examples/. The agent reads the markdown first,
 // then views all 5 images in order, before starting step 1.
 const CONNECT_FILES = [
-  { key: "connect-examples/connect-example.md", mimeType: "text/markdown", name: "Connect example — Muse Chat Log, Example2 (streamlined)", description: "Streamlined xDrive run: pitch, 3 concepts, mockup fixes, 3 layouts, artwork, checkout gating." },
+  { key: "connect-examples/connect-example.md", mimeType: "text/markdown", name: "Connect example — Muse Chat Log, Example2 (streamlined)", description: "Streamlined example run: pitch, 3 concepts, mockup fixes, 3 layouts, artwork, checkout gating." },
   { key: "connect-examples/mockup-tumbler.webp", mimeType: "image/webp", name: "Tumbler mockup", description: "Stainless Tumbler mockup, white pitch text on matte black, no period." },
   { key: "connect-examples/layout-a.webp", mimeType: "image/webp", name: "Layout A — centered, 3 lines", description: "Layout A: centered, 3 lines, large." },
-  { key: "connect-examples/layout-b.webp", mimeType: "image/webp", name: "Layout B — hierarchy", description: "Layout B, chosen: small top line, rule, large AgileFlex Manufacturing." },
+  { key: "connect-examples/layout-b.webp", mimeType: "image/webp", name: "Layout B — hierarchy", description: "Layout B, chosen: small top line, rule, large name." },
   { key: "connect-examples/layout-c.webp", mimeType: "image/webp", name: "Layout C — 2 lines, em dash", description: "Layout C: 2 lines, em dash kept." },
   { key: "connect-examples/artwork-layout-b.png", mimeType: "image/png", name: "Print artwork — Layout B", description: "Print-ready artwork, Layout B, white text on black, 3600x2400 px, 300 DPI." },
 ];

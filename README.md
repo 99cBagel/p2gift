@@ -25,7 +25,9 @@ invented — price, quantity, and delivery are confirmed per order.
 ## Workflow (enforced)
 
 The order workflow is a state machine, taken from
-`Muse Chat Log — Example2` (the xDrive run). No step can be skipped,
+`Muse Chat Log — Example2` (one example case only — no case pitch,
+keepsake, or price is wired into the service; every order supplies
+its own pitch). No step can be skipped,
 and no step advances without an explicit user confirmation.
 
 ```
@@ -113,7 +115,7 @@ bucket `p2gift`, folder `connect-examples/`, and is served by the
 Worker as MCP resources (not embedded in code):
 
 - `p2gift://connect-examples/connect-example.md` — streamlined
-  xDrive run (Example2): pitch, 3 concepts, mockup fixes, 3 layouts,
+  example run: pitch, 3 concepts, mockup fixes, 3 layouts,
   artwork, checkout gating. Source file in this repo:
   `connect-example.md`.
 - `p2gift://connect-examples/mockup-tumbler.webp`
