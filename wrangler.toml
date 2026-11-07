@@ -6,5 +6,9 @@ name = "p2gift"
 compatibility_date = "2026-11-06"
 main = "src/index.js"
 
+[[r2_buckets]]
+binding = "P2GIFT_BUCKET"
+bucket_name = "p2gift"
+
 [observability]
 enabled = true

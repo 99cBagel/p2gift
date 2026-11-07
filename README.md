@@ -22,10 +22,92 @@ Customer pitch / PPT
 No database in v1. Pitch in, three concepts out. No price is ever
 invented — price, quantity, and delivery are confirmed per order.
 
+## Workflow (enforced)
+
+The order workflow is a state machine, taken from
+`Muse Chat Log — Example2` (the xDrive run). No step can be skipped,
+and no step advances without an explicit user confirmation.
+
+```
+1 pitch     propose the pitch → user confirms it, as-is
+2 gift      three concepts from that pitch → user picks 1, 2, or 3
+3 mockup    mockup → fix text errors → layout → 3 layout examples
+            → user picks A, B, or C, confirms proceed
+4 artwork   record the chosen prototype → prepare print-ready
+            artwork (3600×2400 px, 300 DPI) → user reviews, approves
+5 checkout  quantity + recipient name/address + price → draft the
+            order for confirmation. No price is ever invented.
+```
+
+Enforcement, in `src/workflow.js`:
+
+- `start_order` opens a session at step 1 (pitch).
+- `get_next_step` says what the current step needs.
+- `confirm_step` advances exactly one step, and only with that
+  step's data — pitch text, keepsake id, layout A/B/C, artwork
+  approval, or checkout quantity/recipient/price. Anything else,
+  including an out-of-order confirmation, is rejected with an
+  error naming the step that must be completed first.
+- The Worker is stateless: the session object is returned to the
+  assistant, which presents it back on the next call. The Worker
+  validates the step order on every call. It keeps no order record
+  itself — the assistant keeps the record, and the chat log is the
+  order record until checkout is confirmed.
+- Checkout (step 5) does not take payment in this Worker. It hands
+  off to the minshop checkout module, below.
+
+## Checkout module — minshop
+
+Checkout is minshop, as a separate module — not merged into this
+Worker. This Worker owns concepts; minshop owns products, cart,
+payment, shipping, and orders.
+
+```
+p2gift Worker (concepts, steps 1–4)
+  → step 5: checkout draft (pitch + keepsake + layout + artwork)
+  → minshop checkout (own Worker + D1 + R2)
+  → customer pays there → order recorded → manual fulfilment
+```
+
+- The 6 keepsakes are minshop products, with prices confirmed
+  per order (no price is set in this repo).
+- The pitch travels with the order as its personalisation — as a
+  line-item personalisation / order note. Minshop has no native
+  gift-message field, so that capture step is part of the
+  minshop module, not this Worker.
+- Payment order, as in HappyWife: Demo first, then Stripe test
+  mode, live keys only by a separate gated decision.
+- Manual fulfilment stays manual: minshop records a paid order,
+  a person fulfils it. Nothing is shipped on an unpaid order.
+
 ## Endpoint
 
 - MCP (Streamable HTTP): `https://p2gift.keeg.uk/mcp`
 - Health / info: `GET /` → `{ service: "p2gift", mcp: "/mcp" }`
+
+## Connect-stage learning example (R2)
+
+At connect, the assistant reads the skills and one worked example
+first — before starting any order. The example lives in the R2
+bucket `p2gift`, folder `connect-examples/`, and is served by the
+Worker as MCP resources (not embedded in code):
+
+- `p2gift://connect-examples/connect-example.md` — streamlined
+  xDrive run (Example2): pitch, 3 concepts, mockup fixes, 3 layouts,
+  artwork, checkout gating. Source file in this repo:
+  `connect-example.md`.
+- `p2gift://connect-examples/mockup-tumbler.webp`
+- `p2gift://connect-examples/layout-a.webp`
+- `p2gift://connect-examples/layout-b.webp`
+- `p2gift://connect-examples/layout-c.webp`
+- `p2gift://connect-examples/artwork-layout-b.png` — print artwork,
+  3600×2400 px, 300 DPI, white text on black.
+
+Source images in this repo: `examples/assets/`. The Worker exposes
+them via `resources/list` / `resources/read`, and the connect prompt
+`p2gift-connect` (via `prompts/list` / `prompts/get`) tells the
+assistant to read the markdown first, then view all 5 images in
+order, then start with `start_order` at step 1 (pitch).
 
 ## Tools
 
@@ -92,4 +174,8 @@ Push to `main` → `.github/workflows/deploy.yml` → `wrangler deploy`.
 Required GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 The custom domain `p2gift.keeg.uk` is attached once in the Cloudflare
 dashboard and persists across deploys; CI does not re-attach it, and
-does not create D1/R2 — v1 has no database bindings.
+does not create D1/R2. The R2 bucket `p2gift` must already exist
+(owner-created); the binding in `wrangler.toml` only attaches it.
+The `connect-examples/` objects are uploaded to R2 separately —
+`wrangler r2 object put p2gift/connect-examples/<file> --file <file>`
+— they are not deployed from this repo.
