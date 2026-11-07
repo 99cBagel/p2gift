@@ -84,7 +84,7 @@
 <div class="wrap">
 
   <h1>Connect p2gift</h1>
-  <p class="lede">Connect p2gift in Muse or Claude — one time only. After that, p2gift stays connected in every chat. Pick your assistant below. ChatGPT is not supported for p2gift.</p>
+  <p class="lede">Connect p2gift — plus the FLUX.1 image tool for mockups — in Muse or Claude, one time only. After that, both stay connected in every chat. Pick your assistant below. ChatGPT is not supported for p2gift.</p>
 
   <div class="endpoint" role="group" aria-label="p2gift MCP endpoint">
     <div>
@@ -167,6 +167,30 @@
   </div>
   </div>
 
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Also connect: FLUX.1 image tool</h2>
+      <span class="badge">For mockups</span>
+    </div>
+    <p style="color:var(--muted);font-size:14.5px">Your assistant can't draw the mockup itself. Connect this free image tool alongside p2gift, and use both in the same chat — p2gift runs the order, FLUX.1 draws the mockup.</p>
+    <div class="endpoint" role="group" aria-label="Hugging Face MCP endpoint">
+      <div>
+        <div class="label">Server URL</div>
+        <div class="url">https://huggingface.co/mcp?login</div>
+      </div>
+      <button class="copy-btn" id="copyHfUrl" type="button">Copy endpoint</button>
+    </div>
+    <ol class="steps">
+      <li><div><span class="t">Set up Hugging Face</span><p>Create a free account at <span class="kbd">huggingface.co</span>, then in your MCP settings add the image Space <span class="kbd">mcp-tools/FLUX.1-Krea-dev</span>. Free accounts get 5 minutes of image GPU time a day.</p></div></li>
+      <li><div><span class="t">Claude: add it as a custom connector</span><p>Go to <span class="kbd">Customize</span> → <span class="kbd">Connectors</span> → <span class="kbd">Add custom connector</span>, and paste the server URL above.</p></div></li>
+      <li><div><span class="t">Muse: send this message</span><p>Paste it into a new Muse chat, exactly as written:</p>
+        <div class="msg">
+          <pre id="promptHfText">Build a custom connector to Hugging Face MCP. Its MCP server is https://huggingface.co/mcp?login — a remote MCP server over Streamable HTTP. Connect to it, list every tool it gives you, test it end to end, and save the integration as a reusable skill so you can use it in any future conversation.</pre>
+          <button class="copy-btn" id="copyHfPrompt" type="button">Copy message</button>
+        </div></div></li>
+    </ol>
+  </div>
+
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite">Copied</div>
@@ -196,11 +220,14 @@
     } else { fallback(); }
   }
   document.getElementById('copyUrl').addEventListener('click', function(){ copyText(MCP_URL, 'Server URL copied'); });
+  var HF_URL = "https://huggingface.co/mcp?login";
+  document.getElementById('copyHfUrl').addEventListener('click', function(){ copyText(HF_URL, 'Server URL copied'); });
   function bind(id, textId, msg){
     var b = document.getElementById(id);
     if (b) b.addEventListener('click', function(){ copyText(document.getElementById(textId).textContent.trim(), msg); });
   }
   bind('copyPrompt', 'promptText', 'Message copied — paste it into Muse');
+  bind('copyHfPrompt', 'promptHfText', 'Message copied — paste it into Muse');
   bind('copyUse', 'useText', 'Message copied — paste it into any Muse chat');
   bind('copyRevoke', 'revokeText', 'Message copied — paste it into Muse to remove p2gift');
   var tabMuse = document.getElementById('tab-muse');
