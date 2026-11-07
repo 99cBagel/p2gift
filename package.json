@@ -1,8 +1,8 @@
 {
   "name": "p2gift",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
-  "description": "PPT-to-Gift Service Worker — MCP-enabled gifting service (code repo). Work plan and reference live in 99cBagel/p2gift-wiki.",
+  "description": "PPT-to-Gift Service Worker \u2014 MCP-enabled gifting service (code repo). Work plan and reference live in 99cBagel/p2gift-wiki.",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
