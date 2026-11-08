@@ -33,7 +33,7 @@
     "mcp:dev": "wrangler dev --config mcp/wrangler.jsonc --persist-to .wrangler/state",
     "mcp:deploy": "wrangler deploy --config mcp/wrangler.jsonc",
     "mcp:check": "bash scripts/check-mcp.sh",
-    "scaffold:check": "npm test --prefix create-minshop && npm pack ./create-minshop --dry-run",
+    "scaffold:check": "if [ -d create-minshop ]; then npm test --prefix create-minshop && npm pack ./create-minshop --dry-run; else echo \"scaffold:check skipped: no create-minshop in a generated store\"; fi",
     "theme:sync": "node scripts/theme-sync.mjs",
     "db:seed:storefront-states": "bash scripts/seed-storefront-states.sh",
     "check:mcp": "node --check mcp-server/index.js && node --check mcp-server/keepsakes.js && node --check mcp-server/workflow.js && node --check mcp-server/inventory.js"
@@ -61,5 +61,5 @@
       "undici": "^7.29.0"
     }
   },
-  "description": "PPT-to-Gift Service Worker \u2014 MCP-enabled gifting service (code repo). Work plan and reference live in 99cBagel/p2gift-wiki."
+  "description": "PPT-to-Gift Service Worker — MCP-enabled gifting service (code repo). Work plan and reference live in 99cBagel/p2gift-wiki."
 }
