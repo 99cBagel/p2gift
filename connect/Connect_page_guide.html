@@ -34,10 +34,6 @@
   h1{font-size:clamp(28px,4.6vw,40px);line-height:1.1;letter-spacing:-.02em;margin:0 0 10px;font-weight:700}
   p{margin:0 0 12px}
   .lede{font-size:16.5px;color:var(--muted);max-width:62ch}
-  /* endpoint card — stays black */
-  .endpoint{margin-top:18px;background:var(--code-bg);color:var(--code-ink);border-radius:var(--radius);padding:18px 20px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
-  .endpoint .label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.65;font-weight:600}
-  .endpoint .url{font-family:"IBM Plex Mono",monospace;font-size:clamp(15px,2.6vw,19px);font-weight:600;word-break:break-all}
   button{font:inherit;cursor:pointer}
   .copy-btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:9px;padding:10px 16px;font-weight:600;font-size:14px;white-space:nowrap}
   .copy-btn:active{transform:translateY(1px)}
@@ -61,7 +57,6 @@
   @media (max-width:760px){
     .wrap{padding:20px 14px 48px}
     .panel{padding:16px}
-    .endpoint{padding:16px}
   }
   @media (prefers-reduced-motion: reduce){
     .toast{transition:none}
@@ -78,24 +73,26 @@
 <body>
 <div class="wrap">
 
-  <h1>Connect p2gift</h1>
-  <p class="lede">Connect p2gift in Muse — one time only. After that, it stays connected in every chat. You&rsquo;ll need your p2gift API key &mdash; p2gift sends it to you directly.</p>
+  <h1>Connect p2gift (Muse)</h1>
+  <p class="lede">PPT-to-Gift Service Worker<br><b>Put Presentation Pitch on a Gift, Winning Hearts and Staying Memorable.</b></p>
 
-  <div class="endpoint" role="group" aria-label="p2gift MCP endpoint">
-    <div>
-      <div class="label">Server URL</div>
-      <div class="url">https://p2gift.keeg.uk/mcp</div>
+  <div class="panel">
+    <div class="panel-head">
+      <h2>1) Why Connect? What Do We Do?</h2>
     </div>
-    <button class="copy-btn" id="copyUrl" type="button">Copy endpoint</button>
+    <p>Agent (e.g. Muse) follows instructions to extract key messages (pitches). We then put them on a keepsake gift.</p>
+    <p>To learn more, send Muse this message:</p>
+    <div class="msg">
+      <pre id="learnText">Read p2gift-wiki.keeg.uk. Give brief about the service and prepare to answer in details further inquiries</pre>
+      <button class="copy-btn" id="copyLearn" type="button">Copy message</button>
+    </div>
   </div>
-
 <div class="panel">
     <div class="panel-head">
-      <h2>Initial Connect</h2>
-      <span class="badge">One-time · 3 steps</span>
+      <h2>2) One-time Connect</h2>
+      <span class="badge">One-time · 2 steps</span>
     </div>
     <ol class="steps">
-      <li><div><span class="t">Copy the server URL</span><p>Tap <b>Copy endpoint</b> above.</p></div></li>
       <li><div><span class="t">Send Muse this message</span><p>Paste it into a new Muse chat, exactly as written.</p>
         <div class="msg">
           <pre id="promptText">Custom connect to p2gift: https://p2gift.keeg.uk/mcp. (API key required — ask me in secure credentials prompt, then send as an Authorization: Bearer header.)
@@ -103,19 +100,19 @@
 Connect, save it as a reusable skill, and brief me on the service's features — feature pitches, not a tool list. (If Unauthorized, tell me the key doesn't work and stop.)</pre>
           <button class="copy-btn" id="copyPrompt" type="button">Copy message</button>
         </div></div></li>
-      <li><div><span class="t">Feed in the API key</span><p>When Muse asks for it, paste your key into its secure prompt &mdash; never into the chat. Keep it private; it&rsquo;s yours alone.</p></div></li>
+      <li><div><span class="t">Feed in the API key</span><p>When Muse asks for it, paste your key into its secure prompt &mdash; never into the chat. p2gift sent it to you directly; keep it private.</p></div></li>
     </ol>
   </div>
 
   <div class="panel">
     <div class="panel-head">
-      <h2>After that</h2>
+      <h2>3) Example Use</h2>
       <span class="badge">Use it · remove it</span>
     </div>
     <ol class="steps">
-      <li><div><span class="t">Use it in any Muse chat</span><p>Start a new chat and just name p2gift:</p>
+      <li><div><span class="t">Rich Content in Muse Chat</span><p>Upload PPT, chat exchanges, photos or email screenshots in Muse chat and send this message:</p>
         <div class="msg">
-          <pre id="useText">Use p2gift: turn this pitch into a gift keepsake.</pre>
+          <pre id="useText">Use p2gift: extract key messages and generate custom gift ideas.</pre>
           <button class="copy-btn" id="copyUse" type="button">Copy message</button>
         </div></div></li>
       <li><div><span class="t">Remove it any time</span><p>Send Muse this message — it deletes the connector and the saved skill:</p>
@@ -132,7 +129,6 @@ Connect, save it as a reusable skill, and brief me on the service's features —
 
 <script>
 (function(){
-  var MCP_URL = "https://p2gift.keeg.uk/mcp";
   var toast = document.getElementById('toast');
   var toastTimer = null;
   function showToast(msg){
@@ -154,12 +150,12 @@ Connect, save it as a reusable skill, and brief me on the service's features —
       navigator.clipboard.writeText(text).then(function(){ showToast(msg); }, fallback);
     } else { fallback(); }
   }
-  document.getElementById('copyUrl').addEventListener('click', function(){ copyText(MCP_URL, 'Server URL copied'); });
   function bind(id, textId, msg){
     var b = document.getElementById(id);
     if (b) b.addEventListener('click', function(){ copyText(document.getElementById(textId).textContent.trim(), msg); });
   }
   bind('copyPrompt', 'promptText', 'Message copied — paste it into Muse');
+  bind('copyLearn', 'learnText', 'Message copied — paste it into Muse');
   bind('copyUse', 'useText', 'Message copied — paste it into any Muse chat');
   bind('copyRevoke', 'revokeText', 'Message copied — paste it into Muse to remove p2gift');
 })();
