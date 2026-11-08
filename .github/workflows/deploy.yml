@@ -1,15 +1,27 @@
-# Deploy p2gift Worker to Cloudflare on push to main.
+# Deploy the merged p2gift Worker (minshop storefront + MCP service)
+# to Cloudflare on push to main.
 #
 # What this workflow does, and does NOT do:
-#   DOES: deploy the Worker (wrangler deploy) to p2gift.keeg.uk/mcp.
+#   DOES: render wrangler.jsonc from wrangler.template.jsonc with the
+#         real D1 database id, then run the minshop deploy path
+#         (`npm run deploy`): Astro build, remote D1 migrations,
+#         `wrangler deploy` to p2gift.keeg.uk.
 #   DOES NOT: create D1/R2, set secrets, or attach the custom domain.
-#             The domain is attached once in the Cloudflare dashboard
-#             and persists across deploys.
+#             D1 `p2gift-db` and R2 `p2gift-images` / `p2gift-files`
+#             were provisioned once from the VM. The domain is attached
+#             once in the Cloudflare dashboard and persists across
+#             deploys. The R2 bucket `p2gift` (Connect example, Connect
+#             guide, live inventory) is synced by sync-r2.yml, not here.
 #   DOES NOT: deploy on pull requests. Merging to main is the gate.
 #
-# Required GitHub repo settings (Settings -> Secrets):
-#   CLOUDFLARE_API_TOKEN  - Workers Scripts: Edit
-#   CLOUDFLARE_ACCOUNT_ID - your Cloudflare account id
+# Required GitHub repo settings:
+#   Secrets (Settings -> Secrets and variables -> Actions -> Secrets):
+#     CLOUDFLARE_API_TOKEN  - Workers Scripts: Edit
+#     CLOUDFLARE_ACCOUNT_ID - your Cloudflare account id
+#   Variables (same page -> Variables):
+#     P2GIFT_DB_ID - the D1 database id for p2gift-db
+#                    (4e14a23d-6270-4f1a-aa5e-8993b1f42f5a).
+#                    A database id is an identifier, not a credential.
 
 name: Deploy to Cloudflare
 
@@ -28,7 +40,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       WRANGLER_SEND_METRICS: "false"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -41,9 +53,34 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: Syntax check
-        run: npm run check
+      - name: Install dependencies
+        run: npm ci
+
+      - name: MCP syntax check
+        run: npm run check:mcp
+
+      - name: Render wrangler.jsonc from template
+        run: |
+          set -e
+          if [ -z "${{ vars.P2GIFT_DB_ID }}" ]; then
+            echo "P2GIFT_DB_ID variable is not set. Add it under Settings -> Secrets and variables -> Actions -> Variables." >&2
+            exit 1
+          fi
+          sed \
+            -e "s/__NAME__/p2gift/g" \
+            -e "s/__DB_NAME__/p2gift-db/g" \
+            -e "s/__DB_ID__/${{ vars.P2GIFT_DB_ID }}/g" \
+            -e "s/__BUCKET__/p2gift-images/g" \
+            -e "s/__FILES_BUCKET__/p2gift-files/g" \
+            wrangler.template.jsonc > wrangler.jsonc
+          if grep -qE "__NAME__|__DB_NAME__|__DB_ID__|__BUCKET__|__FILES_BUCKET__" wrangler.jsonc; then
+            echo "Unrendered placeholder left in wrangler.jsonc:" >&2
+            grep -E "__NAME__|__DB_NAME__|__DB_ID__|__BUCKET__|__FILES_BUCKET__" wrangler.jsonc >&2
+            exit 1
+          fi
 
       - name: Deploy Worker
-        run: npx wrangler deploy
+        run: npm run deploy

@@ -85,9 +85,11 @@ deploy it, and prove the MCP service still works live afterwards.
   rolled back before anything else is done.
 
 ### 6. Products + payments — Owner (needs the price decision first)
-- [ ] Decide prices for the 6 keepsakes. Blocked in part on the open
-      SpiroApp decision ($15 does not cover the notebook maker,
-      ~$21.25–25.50 before shipping). No product gets a price invented.
+- [ ] Decide prices for the 6 keepsakes. DEFERRED by the user
+      2026-11-07: ignore keepsake prices for now. All keepsake items
+      will be reset again, and that reset happens only after minshop
+      is ready. No product gets a price invented, and no keepsake
+      work until then.
 - [ ] Create the 6 keepsake products in Admin with photos, prices,
       and (for the pitch) the personalisation capture step.
 - [ ] Demo checkout test (Demo rail, no payment).
