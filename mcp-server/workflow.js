@@ -21,10 +21,14 @@
 
 export const STEPS = ["pitch", "gift", "mockup", "artwork", "checkout"];
 
-export function startOrder({ pitchProposal }) {
+export function startOrder({ pitchProposal, customer }) {
   return {
     session_id: `p2g-${Date.now().toString(36)}`,
     step: "pitch",
+    // Who placed the order: the signed-in user from the OAuth token
+    // ({ userId, email, name, provider }). Travels with the session so the
+    // checkout draft and the store order carry that identity.
+    customer: customer ?? null,
     pitch_proposal: pitchProposal ?? null,
     pitch: null,
     concepts: [],

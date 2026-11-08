@@ -67,16 +67,16 @@ deploy it, and prove the MCP service still works live afterwards.
       `npx wrangler secret put AUTH_SECRET` and
       `npx wrangler secret put SECRETS_KEK` (paste each when prompted).
 - Checkpoint: deploy succeeds; `https://p2gift.keeg.uk/` loads the
-  storefront. **Do NOT create a P2GIFT_KEYS namespace** — it already
-  exists (id `eb35d5400a4d4cc0a5cfab0333e2f2e9`, already in the config);
-  keys are issued with `node scripts/issue-key.mjs "Customer"` and
-  stored with `wrangler kv:key put --namespace-id <id> <digest> <json>`.
+  storefront. **Do NOT create an OAUTH_KV namespace** — it already
+  exists (id `ef0213b1ba124aa8aed1e98f1912b4ac`, already in the config);
+  the authorization server stores its grants + tokens there. (The old
+  P2GIFT_KEYS API-key store is retired with v0.2.0 — no keys are issued.)
 
 ### 5. Setup wizard + live MCP verification — Owner, then Muse
 - [ ] Owner: visit `https://p2gift.keeg.uk/admin/setup`, set the admin
       password (owner sets it, never shared), complete setup.
-- [ ] Muse verifies live: `POST /mcp` initialize → p2gift 0.1.9
-      **with a customer API key** (no key → 401 is the expected
+- [ ] Muse verifies live: `POST /mcp` initialize → p2gift 0.2.0
+      **with an OAuth token** (no token → 401 challenge is the expected
       negative check); full order pitch → gift → mockup → artwork →
       checkout → done (TEST-ONLY data); `GET /inventory` →
       `r2-inventory`, 6 items; `GET /connect` → the guide, HTTP 200;

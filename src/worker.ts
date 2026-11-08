@@ -1,8 +1,15 @@
 import { handle } from '@astrojs/cloudflare/handler';
 import { env } from 'cloudflare:workers';
+import { createOAuthServers, handleOAuthRequest, isOAuthPath } from './features/auth/oauth';
 import { sweepStaleNotifications } from './features/email/outbox';
 import { releaseExpiredReservations } from './features/orders/reservations';
 import { getSetting } from './features/settings/db';
+
+// OAuth 2.1 (v0.2.0): this Worker is both the authorization server and the
+// MCP resource server. The servers are pure config (no I/O), so they are
+// built per OAuth request from that request's env — local dev overrides the
+// issuer/resource via .dev.vars, which is why they can't be built once at
+// cold start.
 
 /**
  * Worker entrypoint.
@@ -51,7 +58,17 @@ async function runScheduledSweeps(): Promise<void> {
 }
 
 export default {
-  fetch: handle,
+  // OAuth + MCP paths are routed before Astro: /mcp goes through the token
+  // check in the resource server, /authorize and the /oauth/* protocol
+  // endpoints go to the authorization server, and everything else is the
+  // storefront. /health, /inventory and /connect stay public Astro routes.
+  async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext): Promise<Response> {
+    if (isOAuthPath(new URL(request.url).pathname)) {
+      const oauthResponse = await handleOAuthRequest(request, env, ctx, createOAuthServers(env));
+      if (oauthResponse) return oauthResponse;
+    }
+    return handle(request, env, ctx);
+  },
 
   // Each sweep catches its own errors, so one failing job never strands the
   // others. waitUntil keeps the invocation alive for the whole pass.

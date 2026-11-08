@@ -50,9 +50,23 @@ declare namespace Cloudflare {
     // learning example (connect-examples/), the Connect guide
     // (connect/) and the live inventory (inventory/inventory.json).
     P2GIFT_BUCKET: import('@cloudflare/workers-types').R2Bucket;
-    // p2gift API-key store (v0.1.9): KV key = SHA-256 hex digest of the
-    // customer's key, value = {"customer","created"}. /mcp only.
-    P2GIFT_KEYS: import('@cloudflare/workers-types').KVNamespace;
+    // OAuth 2.1 (v0.2.0): KV holding the authorization server's grants +
+    // tokens.
+    OAUTH_KV: import('@cloudflare/workers-types').KVNamespace;
+    // Upstream sign-in (Google first, GitHub second, SMS third): OAuth client
+    // credentials for the /authorize page. Deployment secrets — set with
+    // `wrangler secret put`, never in the repo. Unset = that button is off.
+    GOOGLE_CLIENT_ID?: string;
+    GOOGLE_CLIENT_SECRET?: string;
+    GITHUB_CLIENT_ID?: string;
+    GITHUB_CLIENT_SECRET?: string;
+    // SMS sign-in (Twilio Verify, US-only): the Worker calls Twilio's Verify
+    // API to send and check the 6-digit code. Deployment secrets — set with
+    // `wrangler secret put` or in the dashboard (Workers → Settings →
+    // Variables and Secrets), never in the repo. Unset = the SMS button is off.
+    TWILIO_ACCOUNT_SID?: string;
+    TWILIO_AUTH_TOKEN?: string;
+    TWILIO_VERIFY_SERVICE_SID?: string;
     // Native edge counters for anonymous credential and paid-provider abuse.
     // Optional in the type so an older custom config fails open during upgrade;
     // the provisioning template and active project config declare them.
@@ -78,6 +92,11 @@ declare namespace Cloudflare {
     IMAGE_BASE_URL?: string;
     /** This store's MCP endpoint, advertised in llms.txt. Unset = not advertised. */
     MCP_URL?: string;
+    // OAuth 2.1 issuer (v0.2.0): the origin the authorization server
+    // advertises and requires requests to arrive at. Unset = production
+    // https://p2gift.keeg.uk. Local dev overrides it in .dev.vars with the
+    // local origin, or every OAuth route rejects the request.
+    OAUTH_ISSUER?: string;
     // Stable HTTPS origin for absolute URLs embedded in public cached responses.
     // Set when a custom domain is the sole ingress; fresh workers.dev instances
     // omit it and use their request origin until a custom domain is attached.

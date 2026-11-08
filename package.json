@@ -1,7 +1,7 @@
 {
   "name": "p2gift",
   "type": "module",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "astro dev",
@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.7",
+    "@cloudflare/workers-oauth-provider": "^1.2.4",
     "astro": "^7.1.6",
     "markdown-it": "^15.0.0",
     "stripe": "^22.4.0",

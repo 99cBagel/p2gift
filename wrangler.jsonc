@@ -18,7 +18,10 @@
 	"main": "./src/worker.ts",
 	"compatibility_date": "2026-07-20",
 	"compatibility_flags": [
-		"nodejs_compat"
+		"nodejs_compat",
+		// OAuth 2.1 (v0.2.0) — required when the authorization server
+		// accepts Client ID Metadata Documents.
+		"global_fetch_strictly_public"
 	],
 	// Recurring jobs. Everything minshop defers was previously driven by incoming
 	// traffic (the notification sweep rides on live settlements; expired inventory
@@ -96,10 +99,10 @@
 	],
 	"kv_namespaces": [
 		{
-			// API-key store (v0.1.9): key = SHA-256 hex digest of the
-			// customer's key. Namespace already exists; this id is real.
-			"binding": "P2GIFT_KEYS",
-			"id": "eb35d5400a4d4cc0a5cfab0333e2f2e9"
+			// OAuth 2.1 (v0.2.0): grants + tokens for the authorization
+			// server. Namespace already exists; this id is real.
+			"binding": "OAUTH_KV",
+			"id": "ef0213b1ba124aa8aed1e98f1912b4ac"
 		}
 	],
 	"vars": {

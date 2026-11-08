@@ -2,30 +2,30 @@
 // Implements the JSON-RPC surface MCP clients need: initialize,
 // notifications/initialized, tools/list, tools/call, resources/list,
 // resources/read, prompts/list, prompts/get, ping.
-// Auth (v0.1.9): /mcp requires a per-customer API key as
-// `Authorization: Bearer <key>`. Keys are issued manually (see
-// scripts/issue-key.mjs); only their SHA-256 hex digests live in the
-// P2GIFT_KEYS KV namespace (KV key = digest, value =
-// {"customer","created"}). /health and /inventory stay public. A key is
-// never shown on the Connect Guide — it travels privately to each
-// customer. R2 binding P2GIFT_BUCKET (bucket "p2gift") serves the
-// Connect-stage learning example at connect-examples/ — the Worker
-// reads it from R2, it does not embed the images in code.
+// Auth (v0.2.0): OAuth 2.1. The /mcp endpoint is served by the merged
+// Worker behind an OAuth resource server (see src/features/auth/oauth.ts):
+// a request only reaches this module after its bearer token was validated,
+// and the signed-in user's identity arrives as `authProps`
+// ({ userId, email, name, provider }). /health and /inventory stay public.
+// R2 binding P2GIFT_BUCKET (bucket "p2gift") serves the Connect-stage
+// learning example at connect-examples/ — the Worker reads it from R2, it
+// does not embed the images in code.
 //
 // This module is transport-agnostic: the named handlers below take a
-// Request and an env (with P2GIFT_BUCKET and P2GIFT_KEYS) and return a
-// Response. The Astro routes in src/pages/mcp.ts, src/pages/inventory.ts,
-// src/pages/connect.ts and src/pages/health.ts call them, so the MCP
-// service has exactly one implementation. The default export is the
-// standalone Worker entry (the pre-merge shape), kept for local use:
-// there the Connect Guide is the landing page at / and /connect
-// redirects to it. In the merged Worker the storefront owns / and the
-// guide is served at /connect instead — same handler, different route.
+// Request and an env (with P2GIFT_BUCKET) and return a Response. The Astro
+// routes in src/pages/inventory.ts, src/pages/connect.ts and
+// src/pages/health.ts call them, and /mcp is routed by the Worker entry
+// (src/worker.ts) through the OAuth resource server, so the MCP service has
+// exactly one implementation. The default export is the standalone Worker
+// entry (the pre-merge shape), kept for local use: there the Connect Guide
+// is the landing page at / and /connect redirects to it. In the merged
+// Worker the storefront owns / and the guide is served at /connect
+// instead — same handler, different route.
 import { KI_POOL, suggestKeepsakes } from "./keepsakes.js";
 import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
 
-const SERVER = { name: "p2gift", version: "0.1.9" };
+const SERVER = { name: "p2gift", version: "0.2.0" };
 
 // Connect-stage learning example, stored in R2 bucket "p2gift"
 // under connect-examples/. The agent reads the markdown first,
@@ -115,27 +115,9 @@ function textResult(obj) {
   return { content: [{ type: "text", text: JSON.stringify(obj, null, 2) }] };
 }
 
-// --- API-key auth -------------------------------------------------------
-// Gate for /mcp only. The presented key is hashed (SHA-256) and looked
-// up in P2GIFT_KEYS; a missing KV record means unknown key. The lookup
-// itself is the comparison, so no secret ever sits in code.
-async function sha256Hex(text) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function checkApiKey(request, env) {
-  if (!env?.P2GIFT_KEYS) return "key store not configured";
-  const m = /^Bearer\s+(.+)$/i.exec(request.headers.get("Authorization") ?? "");
-  if (!m) return "missing or malformed Authorization header";
-  const record = await env.P2GIFT_KEYS.get(await sha256Hex(m[1].trim()));
-  if (record === null) return "unknown API key";
-  return null;
-}
-
 // GET /health — public service JSON (no key needed).
 export function handleHealthRequest() {
-  return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "bearer-api-key", connect_example: "p2gift://connect-examples/connect-example.md" }), {
+  return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "oauth", connect_example: "p2gift://connect-examples/connect-example.md" }), {
     headers: { "content-type": "application/json" },
   });
 }
@@ -159,14 +141,18 @@ export async function handleConnectRequest(env) {
 }
 
 // POST /mcp — JSON-RPC over Streamable HTTP (stateless: one request, one reply).
-// Requires a per-customer API key; /health and /inventory stay public.
-export async function handleMcpRequest(request, env) {
+// Auth is enforced BEFORE this handler by the OAuth resource server in the
+// merged Worker (src/features/auth/oauth.ts): a request only arrives here
+// with a validated token, and `authProps` is the signed-in user
+// ({ userId, email, name, provider }). The check below is defense in depth —
+// it fails closed if this handler is ever reached without a validated
+// identity (e.g. the legacy standalone entry, which has no resource server).
+export async function handleMcpRequest(request, env, authProps) {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
-  const authError = await checkApiKey(request, env);
-  if (authError) {
+  if (!authProps?.userId) {
     return Response.json(
-      error(null, -32001, `Unauthorized (${authError}): this MCP endpoint needs your p2gift API key. Send Authorization: Bearer <your key>.`),
+      error(null, -32001, "Unauthorized: this MCP endpoint needs a validated OAuth sign-in. Connect with your login, not an API key."),
       { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="p2gift"' } }
     );
   }
@@ -243,7 +229,18 @@ export async function handleMcpRequest(request, env) {
       const inv = await loadInventory(env);
       payload = result(id, textResult({ service: "PPT-to-Gift Service Worker", endpoint: "https://p2gift.keeg.uk/mcp", inventory_source: inv.source, keepsake_pool: inv.items }));
     } else if (name === "start_order") {
-      const session = startOrder(args);
+      // The signed-in user travels with the order: the session records who
+      // placed it, so the checkout draft and the store order carry that
+      // identity (the human still pays in the browser — the token can't pay).
+      const session = startOrder({
+        pitchProposal: args.pitchProposal,
+        customer: {
+          userId: authProps.userId,
+          email: authProps.email ?? null,
+          name: authProps.name ?? null,
+          provider: authProps.provider,
+        },
+      });
       payload = result(id, textResult({ session, next_step: nextStep(session), steps: STEPS }));
     } else if (name === "get_next_step") {
       if (!args.session) payload = error(id, -32602, "session is required");
@@ -282,6 +279,9 @@ export async function handleMcpRequest(request, env) {
 // runs on its own: the Connect Guide is the landing page at / here, and
 // /connect redirects to it. In the merged Worker the storefront owns /
 // and the guide is served at /connect by the Astro route instead.
+// NOTE (v0.2.0): /mcp here has no OAuth resource server in front of it, so
+// handleMcpRequest fails closed (401) without a validated identity. The
+// merged Worker (src/worker.ts) is the deployment — this entry is not.
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
