@@ -49,11 +49,13 @@ const { model } = Astro.props;
       <img src="/p2gift-icon.png" alt="" class="h-8 w-8 object-contain sm:h-10 sm:w-10" />
       <span>{model.storeName}</span>
     </a>
-    <StoreSearch
-      action={model.search.action}
-      query={model.search.query}
-      class="ml-auto hidden flex-1 justify-end sm:flex"
-    />
+    {model.search.enabled && (
+      <StoreSearch
+        action={model.search.action}
+        query={model.search.query}
+        class="ml-auto hidden flex-1 justify-end sm:flex"
+      />
+    )}
     {/* ml-auto pins the whole nav to the right edge of the header row, so it
         stays flush right no matter how few items a merchant has.
         min-w-0 is what lets long labels ellipsize instead of overflowing the
@@ -66,7 +68,9 @@ const { model } = Astro.props;
     >
       <StoreNav links={model.headerLinks} />
       {/* Search input is desktop-only; give mobile a link to the search page. */}
-      <a href={model.search.action} class="hover:text-brand sm:hidden">Search</a>
+      {model.search.enabled && (
+        <a href={model.search.action} class="hover:text-brand sm:hidden">Search</a>
+      )}
       {model.cart.enabled && <StoreCartControl href={model.cart.href} />}
       {model.account.enabled && <StoreAccountControl href={model.account.href} />}
     </nav>

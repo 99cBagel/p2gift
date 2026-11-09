@@ -10,6 +10,10 @@ export interface Product {
   price_cents: number;
   currency: string;
   image_key: string | null;
+  /** Full normalized catalog item (Crawlora) as JSON; null = not catalog-fed.
+   *  Carries brand, rating, images, features, review insights, etc. for the
+   *  Product Page. The core columns stay the queryable fields. */
+  catalog_data: string | null;
   stock: number;
   active: number;
   variant_label: string | null; // variant group display name (e.g. "Size"); null = no variants
@@ -402,6 +406,59 @@ export async function createProduct(db: D1Database, p: ProductInput): Promise<nu
       .first<{ id: number }>();
     return row!.id;
   });
+}
+
+/** One catalog-fed product row for the upsert: core columns + full item JSON. */
+export interface CatalogProductInput {
+  slug: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+  currency: string;
+  image_key: string | null;
+  active: number;
+  catalog_data: string;
+}
+
+/**
+ * Insert or update a catalog-fed product by slug (the Crawlora upsert).
+ * New rows get a public_id and stock 0 (the catalog carries no stock count);
+ * existing rows keep their public_id and stock. FTS stays in sync via the
+ * products_fts triggers. Returns whether the row was inserted or updated.
+ */
+export async function upsertCatalogProduct(
+  db: D1Database,
+  p: CatalogProductInput,
+): Promise<'inserted' | 'updated'> {
+  const existing = await getProductBySlug(db, p.slug);
+  await withPublicId('product', async (publicId) => {
+    await db
+      .prepare(
+        `INSERT INTO products (name, slug, description, price_cents, currency, image_key, stock, active, catalog_data, public_id)
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+         ON CONFLICT(slug) DO UPDATE SET
+           name = excluded.name,
+           description = excluded.description,
+           price_cents = excluded.price_cents,
+           currency = excluded.currency,
+           image_key = excluded.image_key,
+           active = excluded.active,
+           catalog_data = excluded.catalog_data`,
+      )
+      .bind(
+        p.name,
+        p.slug,
+        p.description,
+        p.price_cents,
+        p.currency,
+        p.image_key,
+        p.active,
+        p.catalog_data,
+        publicId,
+      )
+      .run();
+  });
+  return existing ? 'updated' : 'inserted';
 }
 
 export async function updateProduct(db: D1Database, id: number, p: ProductInput): Promise<void> {

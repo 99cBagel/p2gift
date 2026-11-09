@@ -1,8 +1,10 @@
 ---
 import { env } from 'cloudflare:workers';
 import Layout from '../layouts/Layout.astro';
-import ProductList from '../features/products/ProductList.astro';
+import KeepsakeList from '../features/products/KeepsakeList.astro';
+import { loadKeepsakePage } from '../features/storefront/keepsakes';
 import { resolveHomePath } from '../features/settings/home';
+import { getConfig } from '../config';
 
 // A store can point `/` at a page or a single product instead of the catalog.
 // Rewriting rather than duplicating those templates keeps one implementation of
@@ -12,8 +14,18 @@ import { resolveHomePath } from '../features/settings/home';
 // through to the catalog: a 404 homepage would be edge-cached for everyone.
 const homePath = await resolveHomePath(env.DB, Astro.locals.settings?.homePage);
 if (homePath) return Astro.rewrite(homePath);
+
+// The homepage is the Keepsake Items page: every active product as a stacked
+// section, for picking a keepsake in chat. No cart here — the header hides the
+// cart link on this page only; /cart and checkout keep working as before.
+// The standard catalog still lives at /products.
+const model = await loadKeepsakePage(env.DB, {
+  imageBaseUrl: getConfig().images.baseUrl,
+  delivery: Astro.locals.settings?.imageDelivery,
+  currency: getConfig().currency,
+});
 ---
 
-<Layout>
-  <ProductList />
+<Layout title="Keepsake Items" hideCart hideSearch>
+  <KeepsakeList model={model} />
 </Layout>

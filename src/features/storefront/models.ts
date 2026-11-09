@@ -75,8 +75,10 @@ export interface StorefrontShellModel {
   announcement: { text: string; href: string | null } | null;
   headerLinks: StorefrontLink[];
   footerLinks: StorefrontLink[];
-  /** Form action plus the current query, so the field repopulates on /search. */
-  search: { action: string; query: string };
+  /** Form action plus the current query, so the field repopulates on /search.
+   *  `enabled` hides the search field/link (e.g. the Keepsake Items page,
+   *  where the header shows only the brand). */
+  search: { action: string; query: string; enabled: boolean };
   cart: { enabled: boolean; href: string };
   account: { enabled: boolean; href: string };
 }
@@ -126,6 +128,64 @@ export interface CatalogPageModel {
   products: ProductCardModel[];
   sort: StorefrontSortModel;
   pagination: StorefrontPaginationModel;
+}
+
+/** One gallery image on the Keepsake Items page. `src` is a final URL —
+ *  either an R2-served image (via the store's image builder) or an absolute
+ *  catalog URL from `catalog_data`. No srcset when the source is external. */
+export interface KeepsakeGalleryImage {
+  src: string;
+  srcset?: string;
+  sizes?: string;
+  alt: string;
+}
+
+/** One selectable variant on the Keepsake Items page (e.g. a color). */
+export interface KeepsakeVariantOption {
+  label: string;
+  formattedPrice: string;
+  soldOut: boolean;
+}
+
+/**
+ * One keepsake on the Keepsake Items page (`/`). All values are resolved
+ * upstream: the template never derives a URL, formats money, or parses
+ * `catalog_data`. Rating, gallery, features, and review insights come from
+ * `catalog_data` when present; products without it render the core fields
+ * only. `position` is the 1-based pick number shown on the page.
+ */
+export interface KeepsakeItemModel {
+  /** `prod_` public ID. Never a row ID. */
+  id: string;
+  position: number;
+  name: string;
+  brand: string | null;
+  formattedPrice: string;
+  /** True when variants disagree on price, so the header reads "from …". */
+  priceVaries: boolean;
+  inStock: boolean;
+  /** Plain-text excerpt of the description (max ~160 chars), or null. */
+  shortDescription: string | null;
+  /** Gallery in display order; at least one entry. The first entry is the
+   *  hero (the primary image when no gallery exists). */
+  gallery: KeepsakeGalleryImage[];
+  rating: number | null;
+  reviewCount: number | null;
+  /** 5 → 1 star share, as whole percents; empty when unknown. */
+  ratingBreakdown: { stars: number; percent: number }[];
+  /** "About this item" bullets from `catalog_data`; empty when none. */
+  features: string[];
+  /** "Customers say" themes from `catalog_data`; empty when none. */
+  reviewInsights: { label: string; summary: string; mentions: number; mentionPercent: number }[];
+  /** Merchant's name for the variant group, e.g. "Color"; null = no variants. */
+  variantLabel: string | null;
+  variants: KeepsakeVariantOption[];
+}
+
+/** The Keepsake Items page (`/`): every active product, in position order. */
+export interface KeepsakePageModel {
+  heading: string;
+  items: KeepsakeItemModel[];
 }
 
 /**

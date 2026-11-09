@@ -120,6 +120,10 @@ declare namespace Cloudflare {
     // There are NO provider env vars; two Worker secrets are required below and
     // the cache-purge secret between them is optional.
     //
+    // Shared secret for POST /api/catalog/upsert (p2gift-admin → this Worker).
+    // Set via wrangler secret / .dev.vars; never commit the value. Unset = the
+    // endpoint is disabled (fail-closed).
+    CATALOG_UPSERT_KEY?: string;
     // Customer accounts (config.features.accounts) + admin sessions: signs the
     // magic-link login token + session cookies (HMAC). Set via wrangler secret;
     // never commit the value.

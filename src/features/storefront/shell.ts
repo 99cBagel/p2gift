@@ -26,6 +26,9 @@ export interface ShellInput {
   footerItems: MenuItem[];
   /** Current search term, normalized, or '' when not on the search route. */
   searchQuery: string;
+  /** Hide the header search field/link on this page only (mirrors the
+   *  hideCart prop — e.g. the Keepsake Items page shows only the brand). */
+  searchEnabled: boolean;
   cartEnabled: boolean;
   accountsEnabled: boolean;
 }
@@ -50,7 +53,7 @@ export function buildShellModel(input: ShellInput): StorefrontShellModel {
       : null,
     headerLinks: input.headerItems.map(toLink),
     footerLinks: input.footerItems.map(toLink),
-    search: { action: '/search', query: input.searchQuery },
+    search: { action: '/search', query: input.searchQuery, enabled: input.searchEnabled },
     cart: { enabled: input.cartEnabled, href: '/cart' },
     account: { enabled: input.accountsEnabled, href: '/account' },
   };

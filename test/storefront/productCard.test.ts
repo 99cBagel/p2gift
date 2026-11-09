@@ -17,6 +17,7 @@ const product = (overrides: Partial<Product> = {}): Product => ({
   price_cents: 2400,
   currency: 'usd',
   image_key: 'media/sample-tee.jpg',
+  catalog_data: null,
   file_key: null,
   file_name: null,
   file_mime: null,

@@ -19,6 +19,7 @@ const input = (overrides: Partial<ShellInput> = {}): ShellInput => ({
   headerItems: [],
   footerItems: [],
   searchQuery: '',
+  searchEnabled: true,
   cartEnabled: true,
   accountsEnabled: false,
   ...overrides,
@@ -160,6 +161,14 @@ describe('the store-owned header', () => {
     expect(html).toContain('value="tee"');
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-label="Search products"');
+  });
+
+  it('drops the search field and link entirely when search is hidden', async () => {
+    const html = await render(Header, buildShellModel(input({ searchEnabled: false })));
+
+    expect(html).not.toContain('role="search"');
+    expect(html).not.toContain('action="/search"');
+    expect(html).not.toContain('>Search</a>');
   });
 
   it('renders the announcement link only when one is set', async () => {

@@ -18,9 +18,17 @@ interface Props {
   /** Override the canonical URL. Used where two routes render the same content
    *  — the catalog is at both / and /products — so only one is indexable. */
   canonical?: string;
+  /** Hide the header cart link on this page only (e.g. the Keepsake Items
+   *  page, where picking happens in chat). The cart drawer, /cart, and
+   *  checkout keep working — only the header link is suppressed. */
+  hideCart?: boolean;
+  /** Hide the header search field/link on this page only (same page as
+   *  hideCart — the Keepsake Items header shows only the brand). The /search
+   *  route itself keeps working. */
+  hideSearch?: boolean;
 }
 
-const { title, description, image, canonical: canonicalOverride } = Astro.props;
+const { title, description, image, canonical: canonicalOverride, hideCart, hideSearch } = Astro.props;
 const config = getConfig();
 const { features } = config;
 // Runtime override (set by the setup wizard) wins over the build-time default.
@@ -37,7 +45,9 @@ const menus = Astro.locals.menus ?? EMPTY_MENUS;
 const headerItems = visibleItems(menus.header);
 const footerItems = visibleItems(menus.footer);
 // Cart can be switched off at runtime → browse-only catalog (hide the cart link).
-const cartEnabled = Astro.locals.settings?.cartEnabled ?? true;
+// hideCart suppresses the link on one page only; the runtime setting still
+// governs everywhere else.
+const cartEnabled = hideCart ? false : (Astro.locals.settings?.cartEnabled ?? true);
 // Accounts nav link: the runtime toggle wins over the build-time default.
 // The header must use the SAME predicate as /account, or it advertises a link
 // that immediately redirects. The route requires the flag, AUTH_SECRET, and a
@@ -79,6 +89,7 @@ const shell = buildShellModel({
   headerItems,
   footerItems,
   searchQuery: query,
+  searchEnabled: hideSearch ? false : true,
   cartEnabled,
   accountsEnabled: accountsOn,
 });

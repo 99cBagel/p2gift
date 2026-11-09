@@ -1,0 +1,353 @@
+---
+import type { KeepsakePageModel } from '../storefront/models';
+
+/**
+ * The Keepsake Items page (`/`).
+ *
+ * A minimal storefront listing: every active product as a stacked section on
+ * one page, in position order. No cart, no buy-now, no category breadcrumb —
+ * this page is for picking a keepsake in chat, not for buying. Each section
+ * has a "Pick N — Paste message to Muse" button that copies the pick message
+ * to the clipboard (with a type-it-yourself fallback) and marks the item
+ * picked. Nothing here posts to /api/cart or navigates to checkout.
+ *
+ * The model arrives fully resolved (see features/storefront/keepsakes.ts);
+ * the template decides only how it looks.
+ */
+interface Props {
+  model: KeepsakePageModel;
+}
+
+const { model } = Astro.props;
+const items = model.items;
+const showJumpNav = items.length > 1;
+---
+
+<div class="mb-10">
+  <h1 class="font-serif text-4xl tracking-tight sm:text-5xl">{model.heading}</h1>
+  <p class="mt-3 max-w-prose text-muted">
+    Tap a keepsake to copy your pick, then paste it back to Muse.
+  </p>
+</div>
+
+{
+  showJumpNav && (
+    <nav
+      aria-label="Keepsake items"
+      class="sticky top-[72px] z-10 mb-10 border-b border-line bg-paper/90 py-3 backdrop-blur sm:top-20"
+    >
+      <ul class="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <li>
+            <a
+              href={`#keepsake-${item.position}`}
+              class="inline-flex h-9 min-w-9 items-center justify-center rounded-md border border-line px-3 text-sm tabular-nums text-muted transition hover:border-brand hover:text-brand"
+            >
+              {item.position}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+{
+  items.length === 0 && (
+    <p role="status" class="text-muted">
+      No products yet.
+    </p>
+  )
+}
+
+{
+  items.map((item) => {
+    const hero = item.gallery[0]!;
+    const firstVariant = item.variants[0]?.label ?? '';
+    return (
+      <section
+        id={`keepsake-${item.position}`}
+        data-keepsake
+        data-index={item.position}
+        data-name={item.name}
+        data-selected-color={firstVariant}
+        class="mb-16 scroll-mt-40 border-b border-line pb-16 last:mb-0 last:border-b-0 last:pb-0"
+      >
+        <div class="grid gap-8 md:grid-cols-2 md:gap-12">
+          <div>
+            <div class="overflow-hidden rounded-md bg-surface">
+              <img
+                data-gallery-main
+                src={hero.src}
+                srcset={hero.srcset}
+                sizes={hero.sizes}
+                alt={hero.alt}
+                class="aspect-square w-full object-cover"
+                width="600"
+                height="600"
+                loading={item.position === 1 ? 'eager' : 'lazy'}
+                fetchpriority={item.position === 1 ? 'high' : 'auto'}
+                decoding="async"
+                data-image-fade={item.position === 1 ? undefined : ''}
+              />
+            </div>
+            {item.gallery.length > 1 && (
+              <div class="mt-3 flex flex-wrap gap-2">
+                {item.gallery.map((g, gi) => (
+                  <button
+                    type="button"
+                    data-gallery-thumb
+                    data-src={g.src}
+                    data-srcset={g.srcset ?? ''}
+                    data-alt={g.alt}
+                    aria-label={`View image ${gi + 1} of ${item.gallery.length}`}
+                    aria-pressed={gi === 0 ? 'true' : 'false'}
+                    class="keepsake-thumb overflow-hidden rounded-md ring-1 ring-line transition hover:ring-brand"
+                  >
+                    <img src={g.src} alt="" class="h-16 w-16 object-cover" loading="lazy" decoding="async" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            {item.brand && (
+              <p class="text-xs uppercase tracking-widest text-faint">{item.brand}</p>
+            )}
+            <h2 class="mt-2 font-serif text-3xl tracking-tight">{item.name}</h2>
+
+            {item.rating !== null && item.reviewCount !== null && (
+              <p class="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
+                <span
+                  class="relative inline-block leading-none"
+                  role="img"
+                  aria-label={`Rated ${item.rating} out of 5`}
+                >
+                  <span class="text-faint">★★★★★</span>
+                  <span
+                    class="absolute left-0 top-0 overflow-hidden whitespace-nowrap text-amber-600"
+                    style={`width:${(item.rating / 5) * 100}%`}
+                  >
+                    ★★★★★
+                  </span>
+                </span>
+                <span class="tabular-nums">
+                  {item.rating} · {item.reviewCount} reviews
+                </span>
+              </p>
+            )}
+
+            <p class="mt-3 text-2xl tabular-nums text-muted">
+              {item.priceVaries && <span class="text-base text-faint">from </span>}
+              {item.formattedPrice}
+            </p>
+            <p class={`mt-2 text-sm ${item.inStock ? 'text-muted' : 'text-amber-700'}`}>
+              {item.inStock ? 'In stock' : 'Out of stock'}
+            </p>
+
+            {item.shortDescription && (
+              <p class="mt-4 max-w-prose text-muted">{item.shortDescription}</p>
+            )}
+
+            {item.variants.length > 0 && item.variantLabel && (
+              <fieldset class="mt-6" data-variant-group>
+                <legend class="text-xs uppercase tracking-widest text-faint">
+                  {item.variantLabel}
+                </legend>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  {item.variants.map((v, vi) => (
+                    <button
+                      type="button"
+                      data-variant-option
+                      data-label={v.label}
+                      aria-pressed={vi === 0 ? 'true' : 'false'}
+                      class="keepsake-pill rounded-md border border-line px-4 py-2 text-sm transition hover:border-brand"
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            <button
+              type="button"
+              data-pick
+              class="mt-6 rounded-md bg-brand px-8 py-3 text-sm font-medium uppercase tracking-wider text-on-brand transition hover:bg-brand-hover"
+            >
+              Pick {item.position} — Paste message to Muse
+            </button>
+            <p data-picked-note class="mt-3 hidden text-sm text-brand">
+              ✓ Picked — message copied. Paste it to Muse.
+            </p>
+
+            {item.features.length > 0 && (
+              <div class="mt-8">
+                <h3 class="text-xs uppercase tracking-widest text-faint">About this item</h3>
+                <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-muted">
+                  {item.features.map((f) => (
+                    <li>{f}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {item.reviewInsights.length > 0 && (
+              <div class="mt-8">
+                <h3 class="text-xs uppercase tracking-widest text-faint">Customers say</h3>
+                <ul class="mt-3 space-y-3">
+                  {item.reviewInsights.map((ri) => (
+                    <li>
+                      <p class="text-sm font-medium capitalize">
+                        {ri.label} · {ri.mentionPercent}%
+                      </p>
+                      <p class="mt-0.5 text-sm text-muted">{ri.summary}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {item.ratingBreakdown.length > 0 && (
+              <div class="mt-8">
+                <h3 class="text-xs uppercase tracking-widest text-faint">Ratings</h3>
+                <ul class="mt-3 space-y-1 text-sm text-muted">
+                  {item.ratingBreakdown.map((b) => (
+                    <li class="flex items-center gap-2">
+                      <span class="w-6 tabular-nums">{b.stars}★</span>
+                      <span class="h-2 flex-1 overflow-hidden rounded bg-surface">
+                        <span
+                          class="block h-2 rounded bg-brand"
+                          style={`width:${b.percent}%`}
+                        />
+                      </span>
+                      <span class="w-10 text-right tabular-nums">{b.percent}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  })
+}
+
+<div
+  data-toast
+  role="status"
+  aria-live="polite"
+  class="fixed bottom-6 left-1/2 z-50 hidden max-w-[calc(100vw-3rem)] -translate-x-1/2 rounded-md bg-ink px-4 py-3 text-center text-sm text-paper shadow-lg"
+>
+</div>
+
+<style>
+  /* Selected color pill / gallery thumbnail: the store's brand color is a
+     theme token, so read it as a variable (with the shipped value as the
+     fallback) rather than hardcoding the hex. */
+  .keepsake-pill[aria-pressed='true'],
+  .keepsake-thumb[aria-pressed='true'] {
+    border-color: var(--color-brand, #111827);
+    color: var(--color-brand, #111827);
+  }
+  .keepsake-pill[aria-pressed='true'] {
+    background: var(--color-surface, #ffffff);
+  }
+</style>
+
+<script>
+  // Pick-to-Muse: copy the pick message, confirm with a toast, mark the item
+  // picked. Client-side only — nothing here posts to /api/cart or navigates
+  // to checkout.
+  const toast = document.querySelector('[data-toast]');
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  const showToast = (message: string) => {
+    if (!(toast instanceof HTMLElement)) return;
+    toast.textContent = message;
+    toast.classList.remove('hidden');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 2600);
+  };
+  const copyText = async (text: string): Promise<boolean> => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Clipboard API unavailable or permission denied: fall back to the
+      // execCommand path, and if that fails too the caller shows the message.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+  };
+  const pickMessage = (section: HTMLElement): string => {
+    const index = section.getAttribute('data-index');
+    const name = section.getAttribute('data-name');
+    const color = section.getAttribute('data-selected-color');
+    return color
+      ? `I pick ${index} — ${name}, Color: ${color}.`
+      : `I pick ${index} — ${name}.`;
+  };
+
+  for (const section of document.querySelectorAll('[data-keepsake]')) {
+    if (!(section instanceof HTMLElement)) continue;
+    // Gallery: a thumbnail swaps the main image (src + srcset).
+    const main = section.querySelector('[data-gallery-main]');
+    for (const thumb of section.querySelectorAll('[data-gallery-thumb]')) {
+      thumb.addEventListener('click', () => {
+        if (!(main instanceof HTMLImageElement)) return;
+        const src = thumb.getAttribute('data-src');
+        const srcset = thumb.getAttribute('data-srcset') || '';
+        const alt = thumb.getAttribute('data-alt') || '';
+        if (src) {
+          main.setAttribute('src', src);
+          if (srcset) main.setAttribute('srcset', srcset);
+          else main.removeAttribute('srcset');
+          if (alt) main.setAttribute('alt', alt);
+        }
+        for (const t of section.querySelectorAll('[data-gallery-thumb]')) {
+          t.setAttribute('aria-pressed', t === thumb ? 'true' : 'false');
+        }
+      });
+    }
+    // Color pills: one selected at a time; the selection feeds the pick message.
+    const pills = section.querySelectorAll('[data-variant-option]');
+    for (const pill of pills) {
+      pill.addEventListener('click', () => {
+        for (const p of pills) {
+          p.setAttribute('aria-pressed', p === pill ? 'true' : 'false');
+        }
+        section.setAttribute('data-selected-color', pill.getAttribute('data-label') || '');
+      });
+    }
+    // Pick: copy the message, confirm, mark picked.
+    const button = section.querySelector('[data-pick]');
+    const pickedNote = section.querySelector('[data-picked-note]');
+    if (button) {
+      button.addEventListener('click', async () => {
+        const message = pickMessage(section);
+        const ok = await copyText(message);
+        if (ok) {
+          showToast('Copied — paste it to Muse.');
+          section.setAttribute('data-picked', 'true');
+          if (pickedNote instanceof HTMLElement) pickedNote.classList.remove('hidden');
+        } else {
+          showToast(`Copy blocked — type this to Muse: ${message}`);
+        }
+      });
+    }
+  }
+</script>

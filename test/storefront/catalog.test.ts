@@ -16,6 +16,7 @@ const product = (n: number, overrides: Partial<Product> = {}): Product => ({
   price_cents: 1000 + n,
   currency: 'usd',
   image_key: null,
+  catalog_data: null,
   file_key: null,
   file_name: null,
   file_mime: null,
