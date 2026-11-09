@@ -6,7 +6,7 @@ import { requirePublicId } from '../catalog/serialize';
 import { productImageSources, type ImageDelivery } from '../products/image';
 import { stockState } from '../products/stock';
 import { formatMoney } from '../../money';
-import { markdownExcerpt } from '../pages/markdown';
+import { renderMarkdown } from '../pages/markdown';
 import { buildStorefrontImage } from './productCard';
 import type {
   KeepsakeGalleryImage,
@@ -230,8 +230,8 @@ export async function loadKeepsakePage(
         formattedPrice: formatMoney(displayPriceCents, options.currency),
         priceVaries,
         inStock,
-        shortDescription: product.description
-          ? markdownExcerpt(product.description, 160)
+        descriptionHtml: product.description
+          ? renderMarkdown(product.description, { baseUrl: options.imageBaseUrl })
           : null,
         gallery,
         rating: facts?.rating ?? null,

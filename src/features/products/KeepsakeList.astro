@@ -146,8 +146,11 @@ const showJumpNav = items.length > 1;
               {item.inStock ? 'In stock' : 'Out of stock'}
             </p>
 
-            {item.shortDescription && (
-              <p class="mt-4 max-w-prose text-muted">{item.shortDescription}</p>
+            {item.descriptionHtml && (
+              <div
+                class="markdown-content mt-4 max-w-prose text-muted"
+                set:html={item.descriptionHtml}
+              />
             )}
 
             {item.variants.length > 0 && item.variantLabel && (

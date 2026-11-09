@@ -164,8 +164,10 @@ export interface KeepsakeItemModel {
   /** True when variants disagree on price, so the header reads "from …". */
   priceVaries: boolean;
   inStock: boolean;
-  /** Plain-text excerpt of the description (max ~160 chars), or null. */
-  shortDescription: string | null;
+  /** Rendered, sanitized HTML of the FULL description (renderMarkdown:
+   *  raw HTML escaped, schemes filtered) — never truncated; null when the
+   *  product has no description. */
+  descriptionHtml: string | null;
   /** Gallery in display order; at least one entry. The first entry is the
    *  hero (the primary image when no gallery exists). */
   gallery: KeepsakeGalleryImage[];
