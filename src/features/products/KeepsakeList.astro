@@ -70,6 +70,7 @@ const showJumpNav = items.length > 1;
         data-keepsake
         data-index={item.position}
         data-name={item.name}
+        data-image-url={item.imageUrl ?? ''}
         data-selected-color={firstVariant}
         class="mb-16 scroll-mt-40 border-b border-line pb-16 last:mb-0 last:border-b-0 last:pb-0"
       >
@@ -300,9 +301,11 @@ const showJumpNav = items.length > 1;
     const index = section.getAttribute('data-index');
     const name = section.getAttribute('data-name');
     const color = section.getAttribute('data-selected-color');
-    return color
-      ? `I pick ${index} — ${name}, Color: ${color}.`
-      : `I pick ${index} — ${name}.`;
+    const imageUrl = section.getAttribute('data-image-url');
+    const picked = color ? `I pick ${index} — ${name}, Color: ${color}` : `I pick ${index} — ${name}`;
+    // With an image the URL closes the message (a trailing period would glue
+    // onto the link when pasted); without one, the sentence keeps its period.
+    return imageUrl ? `${picked} ${imageUrl}` : `${picked}.`;
   };
 
   for (const section of document.querySelectorAll('[data-keepsake]')) {

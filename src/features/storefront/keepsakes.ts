@@ -3,7 +3,7 @@ import type { Product } from '../products/db';
 import { listProductImages } from '../products/db';
 import { listVariants } from '../products/variants';
 import { requirePublicId } from '../catalog/serialize';
-import { productImageSources, type ImageDelivery } from '../products/image';
+import { productImageSources, productImageUrl, type ImageDelivery } from '../products/image';
 import { stockState } from '../products/stock';
 import { formatMoney } from '../../money';
 import { renderMarkdown } from '../pages/markdown';
@@ -147,6 +147,10 @@ export function parseCatalogFacts(raw: string | null): CatalogFacts | null {
 
 export interface KeepsakePageOptions {
   imageBaseUrl: string;
+  /** The site's public origin (see features/http/origin), used to make the
+   *  pick message's image link absolute — the message is pasted into chat,
+   *  where a root-relative path would be a dead link. */
+  siteOrigin: string;
   delivery: ImageDelivery | undefined;
   /** The store's configured currency, for price display. */
   currency: string;
@@ -232,6 +236,16 @@ export async function loadKeepsakePage(
         inStock,
         descriptionHtml: product.description
           ? renderMarkdown(product.description, { baseUrl: options.imageBaseUrl })
+          : null,
+        // The pick message's image link: the product's OWN stored image as
+        // an absolute URL (same resolution the catalog API uses). Null when
+        // there is no image_key — productImageUrl would substitute the
+        // placeholder, and the message must never link a placeholder.
+        imageUrl: product.image_key
+          ? new URL(
+              productImageUrl(product.image_key, options.imageBaseUrl),
+              options.siteOrigin,
+            ).href
           : null,
         gallery,
         rating: facts?.rating ?? null,

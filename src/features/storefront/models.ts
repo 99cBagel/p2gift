@@ -168,6 +168,12 @@ export interface KeepsakeItemModel {
    *  raw HTML escaped, schemes filtered) — never truncated; null when the
    *  product has no description. */
   descriptionHtml: string | null;
+  /** Absolute URL of the product's own stored image (`/images/<image_key>`
+   *  on the site origin), appended to the pick message so the paste carries
+   *  the picture. Null when the product has no stored image — never the
+   *  placeholder, and never a catalog photo: the message links the store's
+   *  own copy only. */
+  imageUrl: string | null;
   /** Gallery in display order; at least one entry. The first entry is the
    *  hero (the primary image when no gallery exists). */
   gallery: KeepsakeGalleryImage[];

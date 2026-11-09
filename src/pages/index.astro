@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers';
 import Layout from '../layouts/Layout.astro';
 import KeepsakeList from '../features/products/KeepsakeList.astro';
 import { loadKeepsakePage } from '../features/storefront/keepsakes';
+import { publicOrigin } from '../features/http/origin';
 import { resolveHomePath } from '../features/settings/home';
 import { getConfig } from '../config';
 
@@ -21,6 +22,7 @@ if (homePath) return Astro.rewrite(homePath);
 // The standard catalog still lives at /products.
 const model = await loadKeepsakePage(env.DB, {
   imageBaseUrl: getConfig().images.baseUrl,
+  siteOrigin: publicOrigin(Astro.url.origin, env.CANONICAL_ORIGIN),
   delivery: Astro.locals.settings?.imageDelivery,
   currency: getConfig().currency,
 });
