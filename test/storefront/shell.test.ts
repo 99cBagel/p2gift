@@ -72,21 +72,22 @@ describe('buildShellModel', () => {
 });
 
 describe('the store-owned header', () => {
-  it('renders the store name when no logo is set', async () => {
+  it('renders the brand icon before the store name', async () => {
     const html = await render(Header, buildShellModel(input()));
 
+    expect(html).toContain('src="/p2gift-icon.png"');
     expect(html).toContain('My Shop');
-    expect(html).not.toContain('<img');
   });
 
-  it('renders a logo image when one is set', async () => {
+  it('renders the brand icon even when an admin logo is set', async () => {
     const html = await render(
       Header,
       buildShellModel(input({ logoImageKey: 'media/logo.png' })),
     );
 
-    expect(html).toContain('src="/images/media/logo.png"');
-    expect(html).toContain('alt="My Shop"');
+    expect(html).toContain('src="/p2gift-icon.png"');
+    expect(html).toContain('My Shop');
+    expect(html).not.toContain('src="/images/media/logo.png"');
   });
 
   it('keeps the cart hooks the drawer script depends on', async () => {

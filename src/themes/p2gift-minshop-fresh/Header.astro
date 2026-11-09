@@ -43,17 +43,11 @@ const { model } = Astro.props;
 
 <header class="sticky top-0 z-20 border-b border-line bg-paper/85 backdrop-blur">
   <div class="mx-auto flex max-w-6xl items-center gap-6 px-6 py-5">
-    <a href="/" aria-label={model.storeName} class="font-serif text-2xl tracking-tight">
-      {
-        model.logo ? (
-          /* Not lazy: the header logo is above the fold on every page. The
-             store name stays the alt text, so the header still reads the
-             same to a screen reader or when the image fails. */
-          <img src={model.logo.src} alt={model.logo.alt} class="h-8 max-w-48 object-contain sm:h-10" />
-        ) : (
-          <span>{model.storeName}</span>
-        )
-      }
+    <a href="/" aria-label={model.storeName} class="flex items-center gap-2 font-serif text-2xl tracking-tight">
+      {/* Brand icon (Key Visual): the kingsman P, always shown before the
+          store name. Not lazy: the header is above the fold on every page. */}
+      <img src="/p2gift-icon.png" alt="" class="h-8 w-8 object-contain sm:h-10 sm:w-10" />
+      <span>{model.storeName}</span>
     </a>
     <StoreSearch
       action={model.search.action}
