@@ -49,7 +49,7 @@ Which item would you like to pick?
 (user)
 
 ```
-I pick 3 — Stainless Tumbler (20 oz) https://p2gift.keeg.uk/images/catalog/b0fjlskf6v.jpg
+I pick 3
 ```
 
 (assistant)
