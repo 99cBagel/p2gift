@@ -7,8 +7,8 @@
 // a request only reaches this module after its bearer token was validated,
 // and the signed-in user's identity arrives as `authProps`
 // ({ userId, email, name, provider }). /health and /inventory stay public.
-// R2 binding P2GIFT_BUCKET (bucket "p2gift") serves the Connect-stage
-// learning example at connect-examples/ — the Worker reads it from R2, it
+// R2 binding P2GIFT_BUCKET (bucket "p2gift") serves the learning
+// examples at examples/ — the Worker reads them from R2, it
 // does not embed the images in code.
 //
 // This module is transport-agnostic: the named handlers below take a
@@ -21,71 +21,87 @@
 // is the landing page at / and /connect redirects to it. In the merged
 // Worker the storefront owns / and the guide is served at /connect
 // instead — same handler, different route.
-import { KI_POOL, suggestKeepsakes } from "./keepsakes.js";
+import { suggestGifts } from "./gifts.js";
 import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
 
 const SERVER = { name: "p2gift", version: "0.2.0" };
 
-// Connect-stage learning example, stored in R2 bucket "p2gift"
-// under connect-examples/. The agent reads the markdown first,
-// then views all 5 images in order, before starting step 1.
-const CONNECT_FILES = [
-  { key: "connect-examples/connect-example.md", mimeType: "text/markdown", name: "Connect example — Muse Chat Log, Example2 (streamlined)", description: "Streamlined example run: pitch, 3 concepts, mockup fixes, 3 layouts, artwork, checkout gating." },
-  { key: "connect-examples/mockup-tumbler.webp", mimeType: "image/webp", name: "Tumbler mockup", description: "Stainless Tumbler mockup, white pitch text on matte black, no period." },
-  { key: "connect-examples/layout-a.webp", mimeType: "image/webp", name: "Layout A — centered, 3 lines", description: "Layout A: centered, 3 lines, large." },
-  { key: "connect-examples/layout-b.webp", mimeType: "image/webp", name: "Layout B — hierarchy", description: "Layout B, chosen: small top line, rule, large name." },
-  { key: "connect-examples/layout-c.webp", mimeType: "image/webp", name: "Layout C — 2 lines, em dash", description: "Layout C: 2 lines, em dash kept." },
-  { key: "connect-examples/artwork-layout-b.png", mimeType: "image/png", name: "Print artwork — Layout B", description: "Print-ready artwork, Layout B, white text on black, 3600x2400 px, 300 DPI." },
+
+// Worked examples for few-shot (N-shot) learning, stored in R2 under
+// examples/. One Markdown file per example, slug-named; "default" is
+// Example 1 (xDrive PPT run). The same Markdown is rendered for humans
+// at /example/<slug> (HTML in a browser, raw Markdown with ?format=md).
+// Adding an example = add its files here and sync them to R2.
+const EXAMPLE_FILES = [
+  { key: "examples/connect-prompt/default.md", mimeType: "text/markdown", name: "Connect Prompt — p2gift overview for the connected Agent", description: "Read first on connect: what p2gift (PPT-to-Gift) is, why it exists, the canonical terms, the 5-step workflow, the resources, and the tools." },
+  { key: "examples/default.md", mimeType: "text/markdown", name: "Example 1 (default) — Muse Chat Log, xDrive PPT run", description: "Default worked example: PPT in, pitch confirmed as-is, gift pick via [view catalog], mockup fixes, 3 layouts, artwork approval, checkout gating on quantity + recipient + price." },
+  { key: "examples/assets/mockup-tumbler.webp", mimeType: "image/webp", name: "Example asset — Tumbler mockup", description: "Stainless Tumbler mockup, white pitch text on matte black, no period." },
+  { key: "examples/assets/layout-a.webp", mimeType: "image/webp", name: "Example asset — Layout A", description: "Layout A: centered, 3 lines, large." },
+  { key: "examples/assets/layout-b.webp", mimeType: "image/webp", name: "Example asset — Layout B", description: "Layout B, chosen: small top line, rule, large name." },
+  { key: "examples/assets/layout-c.webp", mimeType: "image/webp", name: "Example asset — Layout C", description: "Layout C: 2 lines, em dash kept." },
+  { key: "examples/assets/artwork-layout-b.png", mimeType: "image/png", name: "Example asset — Final Print Artwork, Layout B", description: "Final Print Artwork, Layout B, white text on black, 3600x2400 px, 300 DPI." },
+  { key: "examples/print-layout-example.md", mimeType: "text/markdown", name: "Print Layout Design examples", description: "The three Print Layout Designs (A, B, C) with example images — the designs the suggest_print_layout tool returns." },
+  { key: "examples/inventory/inventory.json", mimeType: "application/json", name: "Live gift item inventory", description: "The available gift items, aligned with the store Product Page — the source suggest_gifts picks from." },
 ];
-const CONNECT_RESOURCES = CONNECT_FILES.map((f) => ({
+const EXAMPLE_RESOURCES = EXAMPLE_FILES.map((f) => ({
   uri: `p2gift://${f.key}`,
   name: f.name,
   description: f.description,
   mimeType: f.mimeType,
 }));
+const ALL_RESOURCE_FILES = [...EXAMPLE_FILES];
 
 // The ONE pick flow, taught identically to agents and users: after the
 // pitch is confirmed, present the 3 concepts together with a
 // [view catalog] link to the Product Page, and the user picks by
-// pasting `I pick N — <keepsake name> <image link>` — the same message
+// pasting `I pick N — <gift item name> <image link>` — the same message
 // the Product Page's "Pick N — Paste message to Muse" button copies.
 const CATALOG_URL = "https://p2gift.keeg.uk/";
-// Only these two keepsakes are store catalog products with a Product
-// Page image. Every other keepsake gets image_url: null and a pick
+// Only these two gift items are store catalog products with a Product
+// Page image. Every other gift item gets image_url: null and a pick
 // message without a link — NEVER invent an image link.
 const CATALOG_IMAGE_URLS = {
   "stainless-tumbler-20oz": "https://p2gift.keeg.uk/images/catalog/b0fjlskf6v.jpg",
   "stainless-cups-5pack-12oz": "https://p2gift.keeg.uk/images/catalog/b0gtzp2ddw.jpg",
 };
 
-function catalogImageUrl(keepsakeId) {
-  return CATALOG_IMAGE_URLS[keepsakeId] ?? null;
+// The three Print Layout Designs (see p2gift://examples/print-layout-example.md).
+// The example images are the feed assets under examples/assets/, served
+// by the storefront /images route once the R2 sync has run.
+const PRINT_LAYOUTS = [
+  { layout: "A", name: "Centered — 3 lines, large", description: "Pitch Text centered on 3 lines, large type. Line breaks take the place of dashes and other separators.", image_url: "https://p2gift.keeg.uk/images/examples/assets/layout-a.webp" },
+  { layout: "B", name: "Hierarchy — small top line, rule, large name", description: "Small top line, a rule, then the name large. The design picked in the default workflow example.", image_url: "https://p2gift.keeg.uk/images/examples/assets/layout-b.webp" },
+  { layout: "C", name: "2 lines — em dash kept", description: "Pitch Text on 2 lines, with separators such as the em dash kept.", image_url: "https://p2gift.keeg.uk/images/examples/assets/layout-c.webp" },
+];
+
+function catalogImageUrl(giftItemId) {
+  return CATALOG_IMAGE_URLS[giftItemId] ?? null;
 }
 
-function pickMessage(rank, keepsake) {
-  const imageUrl = catalogImageUrl(keepsake?.id);
+function pickMessage(rank, giftItem) {
+  const imageUrl = catalogImageUrl(giftItem?.id);
   return imageUrl
-    ? `I pick ${rank} — ${keepsake.name} ${imageUrl}`
-    : `I pick ${rank} — ${keepsake.name}`;
+    ? `I pick ${rank} — ${giftItem.name} ${imageUrl}`
+    : `I pick ${rank} — ${giftItem.name}`;
 }
 
 // User-facing instruction the agent can show with the concepts: the
 // [view catalog] link plus each concept's ready pick message.
 function pickInstruction(concepts) {
-  const list = concepts.map((c) => `${c.rank}. ${c.keepsake.name}\n   Paste: \`${c.pick_message}\``).join("\n");
+  const list = concepts.map((c) => `${c.rank}. ${c.gift_item.name}\n   Paste: \`${c.pick_message}\``).join("\n");
   return [
-    "Present these three concepts to the user together with a [view catalog] link to the Product Page. The user picks by pasting a message in this shape: `I pick N — <keepsake name> <image link>`, where the image link is that keepsake's image on the Product Page.",
+    "Present these picks to the user together with a [view catalog] link to the Product Page. The user picks by pasting a message in this shape: `I pick N — <gift item name> <image link>`, where the image link is that gift item's image on the Product Page.",
     "",
-    `Click to view the available Keepsake Items: [view catalog](${CATALOG_URL})`,
+    `Click to view the available gift items: [view catalog](${CATALOG_URL})`,
     "",
     list,
     "",
-    "Which one — 1, 2, or 3?",
+    "Which one will you pick?",
   ].join("\n");
 }
 
-const HOW_TO_PICK = "After the pitch is confirmed, present the three keepsake concepts to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/). The user picks by pasting a message in this shape: `I pick N — <keepsake name> <image link>`, where the image link is that keepsake's image on the Product Page — e.g. `I pick 3 — Stainless Tumbler (20 oz) https://p2gift.keeg.uk/images/catalog/b0fjlskf6v.jpg`. Only store catalog products have an image link (Stainless Tumbler (20 oz); 5-Pack Stainless Cups (12 oz)); for any other keepsake the pick message omits the link — never invent one.";
+const HOW_TO_PICK = "After the pitch is confirmed, present the picks from suggest_gifts to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/). The user picks by pasting a message in this shape: `I pick N — <gift item name> <image link>`, where the image link is that gift item's image on the Product Page — e.g. `I pick 3 — Stainless Tumbler (20 oz) https://p2gift.keeg.uk/images/catalog/b0fjlskf6v.jpg`. Only store catalog products have an image link (Stainless Tumbler (20 oz); 5-Pack Stainless Cups (12 oz)); for any other gift item the pick message omits the link — never invent one.";
 
 function arrayBufferToBase64(buf) {
   const bytes = new Uint8Array(buf);
@@ -100,18 +116,30 @@ function arrayBufferToBase64(buf) {
 const TOOLS = [
   {
     name: "service_info",
-    description: "PPT-to-Gift service overview and the keepsake item pool.",
+    description: "PPT-to-Gift service overview and the gift item pool.",
     inputSchema: { type: "object", properties: {} },
   },
   {
-    name: "suggest_keepsakes",
-    description: "From one pitch, return three different gift keepsake concepts. Present the three concepts to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/); the user picks by pasting a message in this shape: `I pick N — <keepsake name> <image link>`. The result includes catalog_url, a pick_instruction to show the user, and each concept's image_url and ready pick_message.",
+    name: "suggest_gifts",
+    description: "From one pitch, suggest gift items for the user to pick from (up to three). Present the picks to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/); the user picks by pasting a message in this shape: `I pick N — <gift item name> <image link>`. The result includes catalog_url, a pick_instruction to show the user, and each pick's image_url and ready pick_message.",
     inputSchema: {
       type: "object",
       properties: {
-        pitch: { type: "string", description: "Pitch Snippets text." },
+        pitch: { type: "string", description: "Pitch Text text." },
         recipient_profile: { type: ["string", "null"], description: "Recipient profile, only if the customer supplied it." },
         topic_category: { type: ["string", "null"], description: "Topic category, e.g. Professional, Health, Community." },
+      },
+      required: ["pitch"],
+    },
+  },
+  {
+    name: "suggest_print_layout",
+    description: "From one Pitch Text, return the three Print Layout Designs (A, B, C) for the chosen gift item, each with its example image. Present all three to the user and ask which one — A, B, or C. Confirm the pick with confirm_step at the mockup step as data.layout.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        pitch: { type: "string", description: "Pitch Text — the confirmed pitch to print." },
+        gift_item: { type: ["string", "null"], description: "Gift item id or name the layout is for, if already picked." },
       },
       required: ["pitch"],
     },
@@ -136,13 +164,8 @@ const TOOLS = [
     },
   },
   {
-    name: "list_keepsakes",
-    description: "List the current keepsake item pool.",
-    inputSchema: { type: "object", properties: {} },
-  },
-  {
     name: "list_inventory",
-    description: "List the available inventory from R2 inventory/inventory.json — only items with available=true. This is the source suggest_keepsakes picks from.",
+    description: "List the available inventory from R2 examples/inventory/inventory.json — only items with available=true. This is the source suggest_gifts picks from.",
     inputSchema: { type: "object", properties: {} },
   },
 ];
@@ -159,12 +182,12 @@ function textResult(obj) {
 
 // GET /health — public service JSON (no key needed).
 export function handleHealthRequest() {
-  return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "oauth", connect_example: "p2gift://connect-examples/connect-example.md" }), {
+  return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "oauth", example: "p2gift://examples/default.md" }), {
     headers: { "content-type": "application/json" },
   });
 }
 
-// GET /inventory — public JSON for the picker page and the wiki keepsakes page.
+// GET /inventory — public JSON for the picker page and the wiki gift items page.
 export async function handleInventoryRequest(env) {
   const inv = await loadInventory(env);
   return new Response(JSON.stringify({ source: inv.source, items: inv.items }), {
@@ -220,10 +243,10 @@ export async function handleMcpRequest(request, env, authProps) {
   } else if (method === "ping") {
     payload = result(id, {});
   } else if (method === "resources/list") {
-    payload = result(id, { resources: CONNECT_RESOURCES });
+    payload = result(id, { resources: EXAMPLE_RESOURCES });
   } else if (method === "resources/read") {
     const uri = params?.uri ?? "";
-    const file = CONNECT_FILES.find((f) => `p2gift://${f.key}` === uri);
+    const file = ALL_RESOURCE_FILES.find((f) => `p2gift://${f.key}` === uri);
     if (!file) {
       payload = error(id, -32002, `Resource not found: ${uri}`);
     } else if (!env?.P2GIFT_BUCKET) {
@@ -232,7 +255,7 @@ export async function handleMcpRequest(request, env, authProps) {
       const obj = await env.P2GIFT_BUCKET.get(file.key);
       if (!obj) {
         payload = error(id, -32002, `Resource not found in R2: ${file.key}`);
-      } else if (file.mimeType.startsWith("text/")) {
+      } else if (file.mimeType.startsWith("text/") || file.mimeType === "application/json") {
         const text = await obj.text();
         payload = result(id, { contents: [{ uri, mimeType: file.mimeType, text }] });
       } else {
@@ -244,7 +267,7 @@ export async function handleMcpRequest(request, env, authProps) {
     payload = result(id, {
       prompts: [{
         name: "p2gift-connect",
-        description: "Connect to p2gift: read the skills and the connect example first, then start an order at step 1 (pitch).",
+        description: "Connect to p2gift: read the connect prompt first, then the workflow example, then start an order at step 1 (pitch).",
       }],
     });
   } else if (method === "prompts/get") {
@@ -252,12 +275,12 @@ export async function handleMcpRequest(request, env, authProps) {
       payload = error(id, -32602, `Unknown prompt: ${params?.name}`);
     } else {
       payload = result(id, {
-        description: "Connect to p2gift: read the skills and the connect example first, then start an order at step 1 (pitch).",
+        description: "Connect to p2gift: read the connect prompt first, then the workflow example, then start an order at step 1 (pitch).",
         messages: [{
           role: "user",
           content: {
             type: "text",
-            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://connect-examples/connect-example.md, then 2) the 5 image assets in the same folder — mockup-tumbler.webp, layout-a.webp, layout-b.webp, layout-c.webp, artwork-layout-b.png. Learn the flow from that example: pitch confirmed as-is, 3 concepts — present them to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/), and the user picks by pasting `I pick N — <keepsake name> <image link>` (the image link is that keepsake's image on the Product Page) — then mockup fixes, 3 layout examples, pick A/B/C, artwork review and approval, then checkout gated on quantity + recipient name/address + price. Never invent a price. Never skip a step — the Worker enforces the order with start_order / get_next_step / confirm_step. Then start with start_order at step 1 (pitch).",
+            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://examples/connect-prompt/default.md — the connect prompt: what p2gift is, the canonical terms, the 5-step workflow, the resources and the tools — then 2) p2gift://examples/default.md, the worked example, and 3) the 5 image assets in the same folder — examples/assets/mockup-tumbler.webp, layout-a.webp, layout-b.webp, layout-c.webp, artwork-layout-b.png. Also available: the Print Layout Design examples (p2gift://examples/print-layout-example.md) and the live gift item inventory (p2gift://examples/inventory/inventory.json). Learn the flow from that example: pitch confirmed as-is — suggest_gifts returns the gift items to pick from; present the picks to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/), and the user picks by pasting `I pick N — <gift item name> <image link>` (the image link is that gift item's image on the Product Page) — then mockup fixes, 3 layout examples, pick A/B/C, Final Print Artwork review and approval, then checkout gated on quantity + recipient name/address + price. Never invent a price. Never skip a step — the Worker enforces the order with start_order / get_next_step / confirm_step. Then start with start_order at step 1 (pitch).",
           },
         }],
       });
@@ -269,7 +292,7 @@ export async function handleMcpRequest(request, env, authProps) {
     const args = params?.arguments ?? {};
     if (name === "service_info") {
       const inv = await loadInventory(env);
-      payload = result(id, textResult({ service: "PPT-to-Gift Service Worker", endpoint: "https://p2gift.keeg.uk/mcp", inventory_source: inv.source, keepsake_pool: inv.items, catalog_url: CATALOG_URL, how_to_pick: HOW_TO_PICK }));
+      payload = result(id, textResult({ service: "PPT-to-Gift Service Worker", endpoint: "https://p2gift.keeg.uk/mcp", inventory_source: inv.source, gift_items: inv.items, catalog_url: CATALOG_URL, how_to_pick: HOW_TO_PICK }));
     } else if (name === "start_order") {
       // The signed-in user travels with the order: the session records who
       // placed it, so the checkout draft and the store order carry that
@@ -294,21 +317,21 @@ export async function handleMcpRequest(request, env, authProps) {
         if (out.error) payload = error(id, -32602, out.error);
         else payload = result(id, textResult(out));
       }
-    } else if (name === "list_keepsakes") {
-      const inv = await loadInventory(env);
-      payload = result(id, textResult({ source: inv.source, keepsakes: inv.items }));
+    } else if (name === "suggest_print_layout") {
+      if (!args.pitch) payload = error(id, -32602, "pitch is required");
+      else payload = result(id, textResult({ pitch_text: args.pitch, gift_item: args.gift_item ?? null, layouts: PRINT_LAYOUTS, layout_example: "p2gift://examples/print-layout-example.md", instruction: "Present the three Print Layout Designs (A, B, C) with their example images and ask the user which one. Confirm the pick with confirm_step at the mockup step as data.layout." }));
     } else if (name === "list_inventory") {
       const inv = await loadInventory(env);
       payload = result(id, textResult({ source: inv.source, items: inv.items }));
-    } else if (name === "suggest_keepsakes") {
+    } else if (name === "suggest_gifts") {
       if (!args.pitch) payload = error(id, -32602, "pitch is required");
       else {
         const inv = await loadInventory(env);
-        const suggestion = suggestKeepsakes({ pitch: args.pitch, recipientProfile: args.recipient_profile ?? null, topicCategory: args.topic_category ?? null, pool: inv.items });
+        const suggestion = suggestGifts({ pitch: args.pitch, recipientProfile: args.recipient_profile ?? null, topicCategory: args.topic_category ?? null, pool: inv.items });
         const concepts = suggestion.concepts.map((c) => ({
           ...c,
-          image_url: catalogImageUrl(c.keepsake?.id),
-          pick_message: pickMessage(c.rank, c.keepsake),
+          image_url: catalogImageUrl(c.gift_item?.id),
+          pick_message: pickMessage(c.rank, c.gift_item),
         }));
         payload = result(id, textResult({ inventory_source: inv.source, ...suggestion, concepts, catalog_url: CATALOG_URL, pick_instruction: pickInstruction(concepts) }));
       }

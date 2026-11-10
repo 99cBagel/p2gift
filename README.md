@@ -4,7 +4,7 @@ PPT-to-Gift Service Worker. MCP-enabled gifting service: a customer
 submits a pitch (or a PPT), the Worker returns three gift concepts
 from the same message, and the selected proposal is fulfilled manually.
 
-**This repo is code only.** The work plan, service design, keepsake
+**This repo is code only.** The work plan, service design, gift item
 pool, contractor list, and reference material live in
 [99cBagel/p2gift-wiki](https://github.com/99cBagel/p2gift-wiki).
 
@@ -15,7 +15,7 @@ Customer pitch / PPT
   → trusted AI assistant (Muse or Claude)
   → MCP, Streamable HTTP, https://p2gift.keeg.uk/mcp
   → p2gift Worker (Cloudflare)
-  → three gift concepts (Pitch Snippets + Keepsake Item)
+  → three gift concepts (Pitch Text + gift item)
   → customer picks one → checkout → manual fulfilment
 ```
 
@@ -26,7 +26,7 @@ invented — price, quantity, and delivery are confirmed per order.
 
 The order workflow is a state machine, taken from
 `Muse Chat Log — Example2` (one example case only — no case pitch,
-keepsake, or price is wired into the service; every order supplies
+gift item, or price is wired into the service; every order supplies
 its own pitch). No step can be skipped,
 and no step advances without an explicit user confirmation.
 
@@ -46,7 +46,7 @@ Enforcement, in `src/workflow.js`:
 - `start_order` opens a session at step 1 (pitch).
 - `get_next_step` says what the current step needs.
 - `confirm_step` advances exactly one step, and only with that
-  step's data — pitch text, keepsake id, layout A/B/C, artwork
+  step's data — pitch text, gift item id, layout A/B/C, artwork
   approval, or checkout quantity/recipient/price. Anything else,
   including an out-of-order confirmation, is rejected with an
   error naming the step that must be completed first.
@@ -66,12 +66,12 @@ payment, shipping, and orders.
 
 ```
 p2gift Worker (concepts, steps 1–4)
-  → step 5: checkout draft (pitch + keepsake + layout + artwork)
+  → step 5: checkout draft (pitch + gift item + layout + artwork)
   → minshop checkout (own Worker + D1 + R2)
   → customer pays there → order recorded → manual fulfilment
 ```
 
-- The 6 keepsakes are minshop products, with prices confirmed
+- The 6 gift items are minshop products, with prices confirmed
   per order (no price is set in this repo).
 - The pitch travels with the order as its personalisation — as a
   line-item personalisation / order note. Minshop has no native
@@ -89,20 +89,20 @@ p2gift Worker (concepts, steps 1–4)
 
 ## Inventory (mini inventory system)
 
-The keepsake pool is **not hardcoded**. It is loaded at call time
-from R2 `inventory/inventory.json` (source file in this repo:
-`inventory/inventory.json`, synced by the Sync to R2 workflow).
+The gift item pool is **not hardcoded**. It is loaded at call time
+from R2 `examples/inventory/inventory.json` (source file in this repo:
+`examples/inventory/inventory.json`, synced by the Sync to R2 workflow).
 
 - `list_inventory` — available items only (`available=true`).
-- `list_keepsakes` and `service_info` — same available list.
-- `suggest_keepsakes` — picks its 3 concepts only from that
+- `service_info` — same available list.
+- `suggest_gifts` — picks its 3 concepts only from that
   available list, in pool order (full, then condensed, then short).
 - `GET /inventory` — public JSON of the same list, for the
   gift-concept picker page: `{ source, items }`.
 - If R2 is missing, unreadable, or empty, the Worker falls back
   to the hardcoded 6-item pool and reports
   `source: "fallback-pool"` — it never shows nothing.
-- To change what is offered: edit `inventory/inventory.json`
+- To change what is offered: edit `examples/inventory/inventory.json`
   (set `available` true/false, add or remove an item) and push
   to `main`. The Sync to R2 workflow uploads it; no Worker
   redeploy is needed for an inventory change.
@@ -133,9 +133,9 @@ order, then start with `start_order` at step 1 (pitch).
 
 ## Tools
 
-- `service_info` — service overview and keepsake pool.
-- `list_keepsakes` — the 6-item keepsake pool.
-- `suggest_keepsakes` — `pitch` in, three different concepts out.
+- `service_info` — service overview and gift item pool.
+- `list_inventory` — the available gift items from the live inventory.
+- `suggest_gifts` — `pitch` in, three different concepts out.
   Optional `recipient_profile` (only if supplied) and `topic_category`.
 
 ## Connect
@@ -153,14 +153,14 @@ memory. See p2gift-wiki for the full reasoning.
 ## MCP APP-targeting for Claude
 
 Claude is the app-targeting client. Where Claude supports MCP apps,
-the Worker may return app-targeted content — an interactive keepsake
-proposal (pitch, keepsake, mockup) that the customer can inspect and
+the Worker may return app-targeted content — an interactive gift item
+proposal (pitch, gift item, mockup) that the customer can inspect and
 pick inside Claude, instead of reading a plain text list.
 
 Rules for app-targeting:
 
 - The three concepts are the same as the text tools return — same
-  pitch, same keepsake pool, same selection rule. The app is a
+  pitch, same gift item pool, same selection rule. The app is a
   presentation of the concepts, not a second selection path.
 - No checkout, payment, or personal data inside the app. Checkout
   stays manual, confirmed in chat.
@@ -174,7 +174,7 @@ and receives plain text (JSON) only — no app, no interactive UI.
 
 Rules for text-only:
 
-- Every concept is returned as text: keepsake name, pitch text,
+- Every concept is returned as text: gift item name, pitch text,
   and fit (full / condensed / short). Mockups are generated by the
   assistant in chat, from that text, not by the Worker.
 - The assistant keeps the record: pitch, chosen concept, mockup,

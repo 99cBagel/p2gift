@@ -47,8 +47,8 @@ declare namespace Cloudflare {
     BUCKET: import('@cloudflare/workers-types').R2Bucket;
     FILES: import('@cloudflare/workers-types').R2Bucket;
     // p2gift MCP service: the R2 bucket holding the Connect-stage
-    // learning example (connect-examples/), the Connect guide
-    // (connect/) and the live inventory (inventory/inventory.json).
+    // learning examples (examples/), the Connect guide
+    // (connect/) and the live inventory (examples/inventory/inventory.json).
     P2GIFT_BUCKET: import('@cloudflare/workers-types').R2Bucket;
     // OAuth 2.1 (v0.2.0): KV holding the authorization server's grants +
     // tokens.

@@ -2,8 +2,7 @@
 #
 # What this workflow does, and does NOT do:
 #   DOES: upload, on every push to main, the files under
-#         connect-example.md + examples/assets/  ->  R2 connect-examples/
-#         inventory/                              ->  R2 inventory/
+#         examples/** (md, assets, inventory)     ->  R2 examples/ (same key)
 #         connect/                                ->  R2 connect/
 #         (only the files that changed in that push are uploaded,
 #         via `git diff --name-only` against the previous commit;
@@ -27,9 +26,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "connect-example.md"
-      - "examples/assets/**"
-      - "inventory/**"
+      - "examples/**"
       - "connect/**"
       - ".github/workflows/sync-r2.yml"
   workflow_dispatch:
@@ -64,9 +61,9 @@ jobs:
         run: |
           set -e
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            FILES=$(find connect-example.md examples/assets inventory connect -type f 2>/dev/null || true)
+            FILES=$(find examples connect -type f 2>/dev/null || true)
           else
-            FILES=$(git diff --name-only HEAD~1 HEAD -- connect-example.md examples/assets inventory connect || true)
+            FILES=$(git diff --name-only HEAD~1 HEAD -- examples connect || true)
           fi
           if [ -z "$FILES" ]; then
             echo "No R2 files changed, nothing to upload."
@@ -74,9 +71,10 @@ jobs:
           fi
           echo "$FILES" | while read -r f; do
             case "$f" in
-              connect-example.md) KEY="connect-examples/connect-example.md" ;;
-              examples/assets/*) KEY="connect-examples/$(basename "$f")" ;;
-              inventory/*) KEY="$f" ;;
+              examples/assets/*) KEY="$f" ;;
+              examples/connect-prompt/*) KEY="$f" ;;
+              examples/*.md) KEY="$f" ;;
+              examples/inventory/*) KEY="$f" ;;
               connect/*) KEY="$f" ;;
               *) echo "Skipping $f (not an R2 file)"; continue ;;
             esac
