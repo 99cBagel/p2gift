@@ -1,12 +1,12 @@
 import type { APIRoute } from 'astro';
+import { renderExample } from './render';
 
 export const prerender = false;
 
-// GET /example — the examples index for now just forwards to the
-// default example; it becomes a list when more examples are added.
-export const GET: APIRoute = async () => {
-  return new Response(null, {
-    status: 302,
-    headers: { location: '/example/default' },
-  });
+// GET /example — mapped to the default workflow-log example
+// (examples/default.md): the human info page a reader lands on after
+// /connect. Rendered directly here, no redirect; /example/default
+// serves the same source.
+export const GET: APIRoute = async ({ url, request }) => {
+  return renderExample('default', url, request);
 };
