@@ -82,11 +82,16 @@
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",
-			"bucket_name": "p2gift-images"
+			// Consolidated 2026-11-09: the p2gift bucket is the sole R2
+			// bucket (p2gift-images is obsolete; photos live at catalog/*).
+			"bucket_name": "p2gift"
 		},
 		{
 			"binding": "FILES",
 			// Private deliverables: never enable r2.dev or attach a custom domain.
+			// Deliberately a DISTINCT bucket from BUCKET (guarded by
+			// test/scripts/deploy-plan.test.mjs) so private files can
+			// never be served through the public /images route.
 			"bucket_name": "p2gift-files"
 		},
 		{

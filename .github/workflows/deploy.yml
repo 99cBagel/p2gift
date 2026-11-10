@@ -7,8 +7,14 @@
 #         (`npm run deploy`): Astro build, remote D1 migrations,
 #         `wrangler deploy` to p2gift.keeg.uk.
 #   DOES NOT: create D1/R2, set secrets, or attach the custom domain.
-#             D1 `p2gift-db` and R2 `p2gift-images` / `p2gift-files`
-#             were provisioned once from the VM. The domain is attached
+#             D1 `p2gift-db` and the R2 bucket `p2gift` were provisioned
+#             once from the VM. Since the 2026-11-09 consolidation the
+#             `p2gift` bucket is the master R2 bucket: BUCKET and
+#             P2GIFT_BUCKET both bind to it (p2gift-images is obsolete).
+#             FILES stays on the separate `p2gift-files` bucket on
+#             purpose: private deliverables must never share the
+#             public media bucket (guarded by a deploy-plan test).
+#             The domain is attached
 #             once in the Cloudflare dashboard and persists across
 #             deploys. The R2 bucket `p2gift` (Connect example, Connect
 #             guide, live inventory) is synced by sync-r2.yml, not here.
@@ -73,7 +79,7 @@ jobs:
             -e "s/__NAME__/p2gift/g" \
             -e "s/__DB_NAME__/p2gift-db/g" \
             -e "s/__DB_ID__/${{ vars.P2GIFT_DB_ID }}/g" \
-            -e "s/__BUCKET__/p2gift-images/g" \
+            -e "s/__BUCKET__/p2gift/g" \
             -e "s/__FILES_BUCKET__/p2gift-files/g" \
             wrangler.template.jsonc > wrangler.jsonc
           if grep -qE "__NAME__|__DB_NAME__|__DB_ID__|__BUCKET__|__FILES_BUCKET__" wrangler.jsonc; then
