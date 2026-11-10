@@ -24,6 +24,7 @@
 import { suggestGifts } from "./gifts.js";
 import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
+import { prepareCheckout } from "./prepare-checkout.js";
 
 const SERVER = { name: "p2gift", version: "0.2.0" };
 
@@ -168,6 +169,38 @@ const TOOLS = [
     name: "list_inventory",
     description: "List the available inventory from R2 examples/inventory/inventory.json — only items with available=true. This is the source suggest_gifts picks from.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "prepare_checkout",
+    description: "Prepare the store checkout for a completed workflow session (step done, checkout draft present). Runs the shape checks: cart contents against the live catalog (item, variant, quantity, stock, shipping address, and the quoted price must equal the live catalog total), then the 2-layer Final Print Artwork check (Layer 1: PNG only, under 15 MB, transparent background, single color; Layer 2: the gift item's own print/engraving rules plus an AI negative check — text as printed vs the confirmed Pitch Text, the picked layout, no logo). On any failure it returns the reasons so the artwork or draft can be fixed and resubmitted. On success it stores the artwork with the order-to-be, prefills the cart, and returns checkout_url — the user opens it and pays on the store page; the card never passes through the agent.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        session: { type: "object", description: "The completed workflow session (step done) from confirm_step." },
+        artwork_png_base64: { type: "string", description: "The approved Final Print Artwork, PNG, base64-encoded." },
+        shipping: {
+          type: "object",
+          description: "Delivery address for the recipient, exactly as the user gave it.",
+          properties: {
+            name: { type: "string" },
+            line1: { type: "string" },
+            line2: { type: ["string", "null"] },
+            city: { type: "string" },
+            state: { type: ["string", "null"] },
+            postal: { type: "string" },
+            country: { type: "string", description: "2-letter country code, e.g. US." },
+          },
+          required: ["name", "line1", "city", "postal", "country"],
+        },
+        variant_label: { type: ["string", "null"], description: "Variant label the user picked (e.g. a Color for the cups), if any." },
+        quantity: { type: ["integer", "null"], description: "Quantity — defaults to the checkout draft's quantity." },
+        price_cents: { type: ["integer", "null"], description: "The quoted order total in cents — must equal the live catalog total or the preparation is rejected." },
+        pitch_text: { type: ["string", "null"], description: "Defaults to the session's confirmed pitch." },
+        layout: { type: ["string", "null"], description: "Defaults to the session's layout (A, B, or C)." },
+        artwork_attempts: { type: ["integer", "null"], description: "How many artwork submissions have already failed for this order — pass the count from the previous rejection." },
+      },
+      required: ["session", "artwork_png_base64", "shipping"],
+    },
   },
 ];
 
@@ -316,6 +349,14 @@ export async function handleMcpRequest(request, env, authProps) {
       else {
         const out = confirmStep(args.session, { step: args.step, data: args.data ?? {} });
         if (out.error) payload = error(id, -32602, out.error);
+        else payload = result(id, textResult(out));
+      }
+    } else if (name === "prepare_checkout") {
+      if (!args.session || !args.artwork_png_base64 || !args.shipping) {
+        payload = error(id, -32602, "session, artwork_png_base64 and shipping are required");
+      } else {
+        const out = await prepareCheckout(env, authProps, args);
+        if (out.error && out.error !== "artwork_check_unavailable") payload = error(id, -32602, out.error);
         else payload = result(id, textResult(out));
       }
     } else if (name === "suggest_print_layout") {

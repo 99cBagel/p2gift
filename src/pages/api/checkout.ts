@@ -13,6 +13,7 @@ import {
   deleteGuestAccessIfUnsettled,
 } from '../../features/orders/guestAccess.ts';
 import { lineUnitPriceCents } from '../../features/cart/key';
+import { applyPrefillByToken } from '../../features/orders/prefill';
 import { productImageUrl } from '../../features/products/image';
 import { readCart, resolveCart } from '../../features/cart/cart';
 import {
@@ -35,6 +36,7 @@ import { getConfig } from '../../config';
 import {
   reserveInventory,
   releaseInventoryReservation,
+  type ReservationItem,
 } from '../../features/orders/reservations';
 import { reservationItems, type LineDraft } from '../../features/orders/reservationItems.ts';
 import { purgeStockProductCache } from '../../features/cache/purge';
@@ -118,6 +120,13 @@ export const POST: APIRoute = async ({ request, cookies, url, redirect }) => {
   if ((request.headers.get('content-type') ?? '').includes('application/json')) {
     return handleJsonCheckout(request, url);
   }
+
+  // Agent-prefilled cart (MCP prepare_checkout): if this browser carries
+  // an open prefill cookie, attach its approved Final Print Artwork to
+  // the matching reservation item so it settles onto the order, and
+  // consume the prefill.
+  const withPrefillArtwork = async (items: ReservationItem[]): Promise<ReservationItem[]> =>
+    applyPrefillByToken(env.DB, cookies.get('prefill')?.value, items);
 
   const form = await request.formData();
   const origin = url.origin;
@@ -361,7 +370,7 @@ export const POST: APIRoute = async ({ request, cookies, url, redirect }) => {
   // and the access token is the only thing guest URLs carry. success_url points
   // at /order/<token>; the webhook stores the ord_ id on the order.
   const { publicId, accessToken } = await claimOrderIdentity(env.DB);
-  const items = reservationItems(lines);
+  const items = await withPrefillArtwork(reservationItems(lines));
   const reserved = await reserveInventory(
     env.DB,
     publicId,
@@ -435,6 +444,8 @@ export const POST: APIRoute = async ({ request, cookies, url, redirect }) => {
  */
 async function handleJsonCheckout(request: Request, url: URL): Promise<Response> {
   const origin = url.origin;
+  // Agent-prefilled cart: the prefill token rides the Cookie header here.
+  const prefillCookieToken = /(?:^|;\s*)prefill=([^;]+)/.exec(request.headers.get('cookie') ?? '')?.[1];
 
   // Early reject on the declared size, then enforce the cap on the bytes we
   // actually read — a missing/lying content-length header can't slip past.
@@ -771,7 +782,7 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
     const lnReserved = await reserveInventory(
       env.DB,
       lnPublicId,
-      reservationItems(lines),
+      await applyPrefillByToken(env.DB, prefillCookieToken, reservationItems(lines)),
       reservationTtlSeconds('lightning'),
       'lightning',
       purgeStockProductCache,
@@ -859,7 +870,7 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
 
   const { publicId, accessToken } = await claimOrderIdentity(env.DB);
   const provider = await getPaymentProvider(method);
-  const items = reservationItems(lines);
+  const items = await applyPrefillByToken(env.DB, prefillCookieToken, reservationItems(lines));
   const reserved = await reserveInventory(
     env.DB,
     publicId,

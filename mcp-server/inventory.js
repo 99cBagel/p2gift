@@ -32,6 +32,7 @@ export async function loadInventory(env) {
         treatment: i.treatment ?? null,
         note: i.treatment ?? i.note ?? null,
         store: i.store ?? null,
+        artwork_rules: i.artwork_rules ?? null,
       }));
     if (items.length === 0) return { source: "fallback-pool", items: GIFT_POOL };
     return { source: "r2-inventory", items };

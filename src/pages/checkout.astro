@@ -28,6 +28,11 @@ import {
   releaseInventoryReservation,
 } from '../features/orders/reservations';
 import { reservationItems } from '../features/orders/reservationItems.ts';
+import {
+  getOpenPrefill,
+  consumePrefill,
+  applyPrefillArtwork,
+} from '../features/orders/prefill';
 import { purgeStockProductCache } from '../features/cache/purge';
 
 const cfg = getConfig();
@@ -182,7 +187,26 @@ const DEMO_ADDRESS = {
   postal: '12345',
   country: (geoDefault || knownCountries[0] || 'US').toUpperCase(),
 };
-const prefill = rail === 'demo' && !isPost ? DEMO_ADDRESS : null;
+// Agent-prefilled cart (MCP prepare_checkout): the delivery address the
+// user confirmed with their agent pre-fills the form; the buyer still
+// enters their own email and payment. Falls back to the Demo address
+// on the demo rail.
+const prefillToken = Astro.cookies.get('prefill')?.value;
+const agentPrefillRec = prefillToken ? await getOpenPrefill(env.DB, prefillToken) : null;
+const prefill = agentPrefillRec
+  ? {
+      email: '',
+      name: agentPrefillRec.shipping.name,
+      line1: agentPrefillRec.shipping.line1,
+      line2: agentPrefillRec.shipping.line2 ?? '',
+      city: agentPrefillRec.shipping.city,
+      state: agentPrefillRec.shipping.state ?? '',
+      postal: agentPrefillRec.shipping.postal,
+      country: agentPrefillRec.shipping.country,
+    }
+  : rail === 'demo' && !isPost
+    ? DEMO_ADDRESS
+    : null;
 const addr = {
   email: fld('email') || (prefill?.email ?? ''),
   name: fld('name') || (prefill?.name ?? ''),
@@ -255,7 +279,16 @@ if (submitted) {
           // settled order, and the access token is the only thing guest URLs
           // carry. Reservations keep using the ord_ public id.
           const { publicId, accessToken } = await claimOrderIdentity(env.DB);
-          const reservedItems = reservationItems(lines);
+          let reservedItems = reservationItems(lines);
+          // Agent-prefilled cart: attach the approved Final Print
+          // Artwork to the gift line and consume the prefill.
+          if (agentPrefillRec) {
+            const appliedArt = applyPrefillArtwork(reservedItems, agentPrefillRec);
+            if (appliedArt.applied) {
+              reservedItems = appliedArt.items;
+              await consumePrefill(env.DB, agentPrefillRec.token);
+            }
+          }
           const reservationTtl =
             rail === 'demo'
               ? DEMO_CHECKOUT_TTL_SECONDS
@@ -379,6 +412,12 @@ const hasErrors = errors.length > 0;
     <p class="mb-6 text-sm text-muted">
       Subtotal {formatPrice(subtotalCents, currency)} · {lines.length} item{lines.length === 1 ? '' : 's'}
     </p>
+    {agentPrefillRec && (
+      <p class="mb-6 rounded-md border border-line bg-white/60 px-3 py-2 text-sm">
+        Prepared by your agent — the delivery address is filled in from your order, and your
+        approved Final Print Artwork is attached to the gift. Please add your email and payment to finish.
+      </p>
+    )}
 
     {
       hasErrors && (

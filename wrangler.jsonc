@@ -115,6 +115,13 @@
 		// This Worker IS the MCP endpoint — advertised in llms.txt.
 		"MCP_URL": "https://p2gift.keeg.uk/mcp"
 	},
+	// NOTE: the Workers AI binding ("ai") lives ONLY in
+	// wrangler.template.jsonc, so production deploys get env.AI while
+	// local dev does not: wrangler dev treats AI as a remote-only
+	// binding and refuses to boot without a Cloudflare API token,
+	// which would break `npm run verify`. Without the binding,
+	// prepare_checkout's Layer 2 check reports itself unavailable
+	// locally (fail-closed) — production runs the real check.
 	// Optional integrations — uncomment + redeploy to enable (see README → Search,
 	// Settings). Each is just a binding; the code checks for it and falls back.
 	//   "images": { "binding": "IMAGES" },

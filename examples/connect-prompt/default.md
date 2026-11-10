@@ -20,7 +20,7 @@ For: the connected Agent. Read on connect, before any order.
 - `pitch_text` = Pitch Text / Feature Pitch. Never "snippet".
 - `gift_item` = gift / gift item — the item the pitch prints on.
 - `print_layout_design` = Print Layout Design — A, B, or C.
-- `final_print_artwork` = Final Print Artwork — print-ready file: JPEG or PNG only, under 15 MB.
+- `final_print_artwork` = Final Print Artwork — print-ready PNG: transparent background, single color, no logo, one file, under 15 MB. Shape-checked in 2 layers before checkout (see `prepare_checkout`).
 
 ## Flow — 5 steps, in order, no skipping
 
@@ -28,7 +28,7 @@ For: the connected Agent. Read on connect, before any order.
 2. **gift** — suggest gift items; user picks 1.
 3. **mockup** — show the pick; Print Layout Designs A/B/C.
 4. **artwork** — Final Print Artwork; user approves.
-5. **checkout** — qty + recipient + price. Never invent any of them.
+5. **checkout** — qty + recipient + price. Never invent any of them. Then `prepare_checkout` shape-checks the order and returns the prefilled checkout link — the user opens it and pays on the store page.
 
 ## Resources — read first
 
@@ -48,9 +48,11 @@ For: the connected Agent. Read on connect, before any order.
 | `start_order` | Opens an order session and returns step 1 (pitch). |
 | `get_next_step` | Returns the current step for a session. |
 | `confirm_step` | Confirms the current step and advances exactly one. Rejects out-of-order confirmations. |
+| `prepare_checkout` | The checkout preparation. Shape-checks a completed order — cart vs the live catalog (item, variant, qty, stock, address, quoted price must equal the catalog total) and the Final Print Artwork in 2 layers: L1 file rules (PNG only, under 15 MB, transparent background, single color); L2 the gift item's own print/engraving rules + an AI negative check (text as printed vs the Pitch Text, the picked layout, no logo). Pass → a prefilled checkout link for the user to pay. Fail → the reasons; fix and resubmit. |
 
 ## Live Connect
 
+- The channel is the store's Contact page — a CMS page, text not a function — plus email.
 - Blocked — a step cannot be settled, or a decision is needed (e.g. an artwork override)? Do not invent an answer.
 - Draft an email for your user to hello@keeg.uk (Contact page: https://p2gift.keeg.uk/pages/contact-us).
 - The draft carries: session/order reference, gift_item, where you are stuck, your question.

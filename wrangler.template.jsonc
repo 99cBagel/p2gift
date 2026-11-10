@@ -89,5 +89,7 @@
     // nothing is advertised, rather than pointing at an endpoint that is not
     // there. See README → MCP server.
     // "MCP_URL": "https://your-mcp-host/mcp"
-  }
+  },
+  // Workers AI — the MCP prepare_checkout Layer 2 artwork check.
+  "ai": { "binding": "AI" }
 }
