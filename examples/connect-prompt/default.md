@@ -32,7 +32,7 @@ For: the connected Agent. Read on connect, before any order.
 
 ## Resources — read first
 
-- Worked example: `p2gift://examples/default.md` + its 5 image assets.
+- Worked example: `p2gift://examples/default.md` + its 6 image assets.
 - Layouts: `p2gift://examples/print-layout-example.md`.
 - Live inventory: `p2gift://examples/inventory/inventory.json`.
 

@@ -33,6 +33,14 @@ workflow example, and the one its Final Print Artwork is made from.
 xDrive AFM Certification — / AgileFlex Manufacturing. The em dash
 stays, as part of the first line.
 
+## All three in one image
+
+![Print Layout Designs A, B, C in one image](./assets/layout-3choices.webp)
+
+The same three designs side by side in one image — A left, B middle,
+C right. This combined image is the one shown in the default
+workflow example.
+
 ## Rules for every design
 
 - The Pitch Text prints exactly as confirmed — no added period, no
