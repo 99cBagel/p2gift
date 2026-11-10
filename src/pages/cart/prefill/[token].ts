@@ -4,12 +4,15 @@
  * opening this link sets the visitor's cart cookie from that row,
  * remembers the prefill in a cookie so /checkout can pre-fill the
  * delivery address and attach the approved Final Print Artwork to the
- * order, and lands on /checkout. Payment happens there, by the human,
- * as with any guest checkout.
+ * order, and lands on the store's checkout entry for its configured
+ * payment rail. Payment happens there, by the human, as with any
+ * guest checkout.
  */
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { getOpenPrefill } from '../../../features/orders/prefill';
+import { getStoreSettings } from '../../../features/settings/db';
+import { defaultMethod, isMethodAvailable } from '../../../features/payments';
 
 const EXPIRED_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Checkout link expired — p2gift</title>
@@ -62,5 +65,20 @@ export const GET: APIRoute = async ({ params, cookies, redirect, url }) => {
     secure,
     maxAge: 60 * 60 * 24 * 7,
   });
-  return redirect('/checkout', 302);
+  // Land where this store actually takes payment: the in-app checkout
+  // page serves the demo/lightning/opennode rails and needs its rail
+  // named (?method=); a hosted rail (Stripe) starts from the cart
+  // page's own checkout button instead. Any doubt → the cart, which
+  // is already filled.
+  let target = '/cart';
+  try {
+    const settings = await getStoreSettings(env.DB);
+    const method = defaultMethod(settings);
+    if (method !== 'stripe' && isMethodAvailable(method, settings)) {
+      target = `/checkout?method=${method}`;
+    }
+  } catch {
+    // Settings unreadable — the cart landing still completes the flow.
+  }
+  return redirect(target, 302);
 };
