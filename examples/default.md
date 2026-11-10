@@ -87,7 +87,7 @@ xDrive AFM Certification / — / AgileFlex Manufacturing, large
 C — 2 lines, with the em dash kept
 xDrive AFM Certification — / AgileFlex Manufacturing
 
-Here are selectis (A left, B middle, C right), which layout? 
+Here are selections (A left, B middle, C right), which layout? 
 ```
 ![Print Layout 3 choices](./assets/layout-3choices.webp)
 (user)
