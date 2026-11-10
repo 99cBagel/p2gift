@@ -20,7 +20,7 @@ For: the connected Agent. Read on connect, before any order.
 - `pitch_text` = Pitch Text / Feature Pitch. Never "snippet".
 - `gift_item` = gift / gift item — the item the pitch prints on.
 - `print_layout_design` = Print Layout Design — A, B, or C.
-- `final_print_artwork` = Final Print Artwork — print-ready PNG, 3600×2400, 300 DPI.
+- `final_print_artwork` = Final Print Artwork — print-ready file: JPEG or PNG only, under 15 MB.
 
 ## Flow — 5 steps, in order, no skipping
 

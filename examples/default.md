@@ -125,10 +125,10 @@ Gift selection — Stainless Tumbler (20 oz), Layout B, pitch as in the mockup. 
 Next is to prepare the Final Print Artwork. I need to apply the artwork on the surface of the selected gift item.
 
 Here is the Final Print Artwork
-- PNG, 3600 × 2400 px (12 × 8 in at 300 DPI), 112 KB
+- PNG, 112 KB — file rule: JPEG or PNG only, under 15 MB
 - White text on black, Layout B: small "xDrive AFM Certification", rule, then "AgileFlex" / "Manufacturing" large
 
-![Final Print Artwork, Layout B, white text on black, 3600x2400 px](examples/assets/final_print_artwork.png)
+![Final Print Artwork, Layout B, white text on black](examples/assets/final_print_artwork.png)
 
 Please review. Does this look good to you?
 ```

@@ -41,7 +41,7 @@ const EXAMPLE_FILES = [
   { key: "examples/assets/layout-b.webp", mimeType: "image/webp", name: "Example asset — Layout B", description: "Layout B, chosen: small top line, rule, large name." },
   { key: "examples/assets/layout-c.webp", mimeType: "image/webp", name: "Example asset — Layout C", description: "Layout C: 2 lines, em dash kept." },
   { key: "examples/assets/layout-3choices.webp", mimeType: "image/webp", name: "Example asset — Layouts A, B, C in one image", description: "The three print layout designs side by side in one strip — A left, B middle, C right; the combined image shown in the default workflow example." },
-  { key: "examples/assets/final_print_artwork.png", mimeType: "image/png", name: "Example asset — Final Print Artwork, Layout B", description: "Final Print Artwork, Layout B, white text on black, 3600x2400 px, 300 DPI." },
+  { key: "examples/assets/final_print_artwork.png", mimeType: "image/png", name: "Example asset — Final Print Artwork, Layout B", description: "Final Print Artwork, Layout B, white text on black." },
   { key: "examples/print-layout-example.md", mimeType: "text/markdown", name: "Print Layout Design examples", description: "The three Print Layout Designs (A, B, C) with example images — the designs the suggest_print_layout tool returns." },
   { key: "examples/inventory/inventory.json", mimeType: "application/json", name: "Live gift item inventory", description: "The available gift items, aligned with the store Product Page — the source suggest_gifts picks from." },
 ];
