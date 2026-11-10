@@ -263,5 +263,5 @@ export async function loadKeepsakePage(
     }),
   );
 
-  return { heading: 'Keepsake Items', items };
+  return { heading: 'Pick A Gift', items };
 }

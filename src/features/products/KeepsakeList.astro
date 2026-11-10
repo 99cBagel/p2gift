@@ -26,7 +26,7 @@ const showJumpNav = items.length > 1;
 <div class="mb-10">
   <h1 class="font-serif text-4xl tracking-tight sm:text-5xl">{model.heading}</h1>
   <p class="mt-3 max-w-prose text-muted">
-    Tap a keepsake to copy your pick, then paste it back to Muse.
+    Tap button, then paste it back to Muse
   </p>
 </div>
 
@@ -41,7 +41,7 @@ const showJumpNav = items.length > 1;
           <li>
             <a
               href={`#keepsake-${item.position}`}
-              class="inline-flex h-9 min-w-9 items-center justify-center rounded-md border border-line px-3 text-sm tabular-nums text-muted transition hover:border-brand hover:text-brand"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#fa6001] text-sm font-semibold tabular-nums text-white transition hover:opacity-90"
             >
               {item.position}
             </a>
@@ -178,11 +178,11 @@ const showJumpNav = items.length > 1;
             <button
               type="button"
               data-pick
-              class="mt-6 rounded-md bg-brand px-8 py-3 text-sm font-medium uppercase tracking-wider text-on-brand transition hover:bg-brand-hover"
+              class="mt-6 rounded-[9px] bg-[#0f766e] px-4 py-2.5 text-sm font-semibold text-white transition active:translate-y-px"
             >
               Pick {item.position} — Paste message to Muse
             </button>
-            <p data-picked-note class="mt-3 hidden text-sm text-brand">
+            <p data-picked-note class="mt-3 hidden text-sm text-[#0f766e]">
               ✓ Picked — message copied. Paste it to Muse.
             </p>
 
