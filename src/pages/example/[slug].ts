@@ -80,7 +80,9 @@ export const GET: APIRoute = async ({ params, url, request }) => {
   // Point the Markdown's repo-relative asset links at the /images route,
   // which serves the same bucket keys.
   const bodyHtml = renderMarkdown(
-    md.replaceAll('](examples/assets/', '](/images/examples/assets/'),
+    md
+      .replaceAll('](examples/assets/', '](/images/examples/assets/')
+      .replaceAll('](./assets/', '](/images/examples/assets/'),
   );
   return new Response(pageHtml(title, slug, bodyHtml), {
     headers: {
