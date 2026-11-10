@@ -33,7 +33,7 @@ function pageHtml(title: string, slug: string, bodyHtml: string): string {
   header img { width: 34px; height: 34px; border-radius: 8px; }
   header .brand { font-size: 20px; font-weight: 700; }
   header .kind { margin-left: auto; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #8a8378; }
-  header .nav-btn { margin-left: 14px; background: #0f766e; color: #fff; text-decoration: none; border-radius: 999px; padding: 6px 14px; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+  header .nav-btn { margin-left: 14px; display: inline-flex; align-items: center; gap: 7px; background: #0f766e; color: #fff; text-decoration: none; border-radius: 999px; padding: 6px 14px; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
   main img { max-width: 100%; height: auto; border-radius: 10px; }
   pre { background: #fffdf8; border: 1px solid #e4ded2; border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 14px; line-height: 1.6; }
   code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
@@ -43,7 +43,7 @@ function pageHtml(title: string, slug: string, bodyHtml: string): string {
 </head>
 <body>
 <div class="wrap">
-<header><img src="/p2gift-icon.png" alt=""><span class="brand">p2gift</span><span class="kind">Example</span><a class="nav-btn" href="/connect">Connect p2gift</a></header>
+<header><img src="/p2gift-icon.png" alt=""><span class="brand">p2gift</span><span class="kind">Example</span><a class="nav-btn" href="/connect"><svg width="15" height="15" viewBox="0 0 24 24" fill="#fa6001"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>HOME</a></header>
 <main>
 ${bodyHtml}
 </main>
