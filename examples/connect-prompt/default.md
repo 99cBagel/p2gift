@@ -48,3 +48,11 @@ For: the connected Agent. Read on connect, before any order.
 | `start_order` | Opens an order session and returns step 1 (pitch). |
 | `get_next_step` | Returns the current step for a session. |
 | `confirm_step` | Confirms the current step and advances exactly one. Rejects out-of-order confirmations. |
+
+## Live Connect
+
+- Blocked — a step cannot be settled, or a decision is needed (e.g. an artwork override)? Do not invent an answer.
+- Draft an email for your user to hello@keeg.uk (Contact page: https://p2gift.keeg.uk/pages/contact-us).
+- The draft carries: session/order reference, gift_item, where you are stuck, your question.
+- Your user sends it from their own email. The operator — or the operator's Muse — replies by email.
+- Approvals and exceptions are the operator's own decision; wait for the reply before proceeding.
