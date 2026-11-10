@@ -117,19 +117,16 @@ Here are three print layout design examples, all with no period:
 
 A — Centered, 3 lines, large
 xDrive AFM / Certification / AgileFlex Manufacturing
-![Print Layout Design A, centered 3 lines](examples/assets/layout-a.webp)
 
 B — Hierarchy, small top line + rule + large name
 xDrive AFM Certification / — / AgileFlex Manufacturing, large
-![Print Layout Design B, hierarchy, small top line, rule, large AgileFlex Manufacturing](examples/assets/layout-b.webp)
 
 C — 2 lines, with the em dash kept
 xDrive AFM Certification — / AgileFlex Manufacturing
-![Print Layout Design C, 2 lines with em dash](examples/assets/layout-c.webp)
 
 Which layout — A, B, or C?
 ```
-
+![Print Layout 3 choices](examples/assets/layout-3choices.webp)
 (user)
 
 ```
