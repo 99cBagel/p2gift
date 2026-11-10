@@ -147,3 +147,30 @@ Now I am ready to check out. I need two things:
 1. How many?
 2. Deliver to whom, and where? (name + address)
 ```
+
+(user)
+
+```
+1. One
+2. Deliver to: [recipient name], [street address]
+```
+
+(assistant)
+
+```
+Cart prefilled — Stainless Tumbler (20 oz) × 1, Print Layout Design B, with the Final Print Artwork you approved. Price: $13.99, from the catalog.
+
+[Proceed to check out](https://p2gift.keeg.uk/checkout) — payment and delivery details are entered by you on the store page. Your card never passes through me.
+```
+
+(user)
+
+```
+Checked out.
+```
+
+(assistant)
+
+```
+Done — order placed. Your pitch is on its gift, on its way to the recipient.
+```
