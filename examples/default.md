@@ -56,7 +56,7 @@ I pick 3 — Stainless Tumbler (20 oz) https://p2gift.keeg.uk/images/catalog/b0f
 
 ```
 Concept 3, confirmed — Stainless Tumbler (20 oz), with the mockup:
-![Tumbler mockup, white Pitch Text on matte black tumbler, no period](examples/assets/mockup-tumbler.webp)
+![Tumbler mockup, white Pitch Text on matte black tumbler, no period](examples/assets/themed-base.webp)
 
 Pitch Text printed in white on the tumbler:
 xDrive AFM Certification — AgileFlex Manufacturing
@@ -76,7 +76,7 @@ add period
 
 ```
 Here is a mockup of the print layout design:
-![Tumbler mockup, no period, one-line Pitch Text](examples/assets/mockup-tumbler.webp)
+![Tumbler mockup, no period, one-line Pitch Text](examples/assets/themed-base.webp)
 
 Now reads exactly:
 xDrive AFM Certification — AgileFlex Manufacturing
@@ -94,7 +94,7 @@ change layout to 3 lines, increase font size
 
 ```
 Done — 3 lines, larger font, no period:
-![Tumbler mockup, 3 lines, large font](examples/assets/mockup-tumbler.webp)
+![Tumbler mockup, 3 lines, large font](examples/assets/themed-base.webp)
 
 xDrive AFM
 Certification
@@ -167,7 +167,7 @@ Here is the Final Print Artwork
 - PNG, 3600 × 2400 px (12 × 8 in at 300 DPI), 112 KB
 - White text on black, Layout B: small "xDrive AFM Certification", rule, then "AgileFlex" / "Manufacturing" large
 
-![Final Print Artwork, Layout B, white text on black, 3600x2400 px](examples/assets/artwork-layout-b.png)
+![Final Print Artwork, Layout B, white text on black, 3600x2400 px](examples/assets/final_print_artwork.png)
 
 Please review. Does this look good to you?
 ```
