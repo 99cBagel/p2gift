@@ -63,58 +63,20 @@ xDrive AFM Certification — AgileFlex Manufacturing
 
 One small flaw to flag: the mockup adds a period after "Manufacturing" that isn't in your pitch. Keep it as-is, or want me to regenerate it?
 
-If you approve this one, the next step is to choose a print layout design.
+If you approve this one, the next step is to choose a print layout design. Ready for next?
 ```
 ![Tumbler mockup, white Pitch Text on matte black tumbler, no period](./assets/themed-base.webp)
 
 (user)
 
 ```
-add period
+yes
 ```
 
 (assistant)
 
 ```
-Here is a mockup of the print layout design:
-![Tumbler mockup, no period, one-line Pitch Text](examples/assets/themed-base.webp)
-
-Now reads exactly:
-xDrive AFM Certification — AgileFlex Manufacturing
-
-No trailing period. Approved, or want another change?
-```
-![Tumbler mockup, white Pitch Text on matte black tumbler, no period](./assets/layout-c.webp)
-
-(user)
-
-```
-change layout to 3 lines, increase font size
-```
-
-(assistant)
-
-```
-Done — 3 lines, larger font, no period:
-![Tumbler mockup, 3 lines, large font](examples/assets/themed-base.webp)
-
-xDrive AFM
-Certification
-AgileFlex Manufacturing
-
-Note: the em dash is gone in this layout — the line break takes its place. Approved, or want the dash kept somewhere?
-```
-
-(user)
-
-```
-give three layout examples
-```
-
-(assistant)
-
-```
-Here are three print layout design examples, all with no period:
+Here are three print layout design examples:
 
 A — Centered, 3 lines, large
 xDrive AFM / Certification / AgileFlex Manufacturing
@@ -125,7 +87,7 @@ xDrive AFM Certification / — / AgileFlex Manufacturing, large
 C — 2 lines, with the em dash kept
 xDrive AFM Certification — / AgileFlex Manufacturing
 
-Which layout — A, B, or C?
+Here are selectis (A left, B middle, C right), which layout? 
 ```
 ![Print Layout 3 choices](./assets/layout-3choices.webp)
 (user)
