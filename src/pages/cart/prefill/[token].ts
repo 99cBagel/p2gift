@@ -75,7 +75,17 @@ export const GET: APIRoute = async ({ params, cookies, redirect, url }) => {
     const settings = await getStoreSettings(env.DB);
     const method = defaultMethod(settings);
     if (method !== 'stripe' && isMethodAvailable(method, settings)) {
+      // The default rail is an available in-app rail — straight there.
       target = `/checkout?method=${method}`;
+    } else if (isMethodAvailable('stripe', settings)) {
+      // A hosted Stripe checkout starts from the cart page's own
+      // checkout button; the cart cookie is already set.
+      target = '/cart';
+    } else {
+      // No real rail is configured (a demo-mode store, whatever the
+      // named default): demo is the rail that can actually take the
+      // order, and it is an in-app rail.
+      target = '/checkout?method=demo';
     }
   } catch {
     // Settings unreadable — the cart landing still completes the flow.
