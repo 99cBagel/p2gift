@@ -56,7 +56,7 @@ I pick 3 — Stainless Tumbler (20 oz) https://p2gift.keeg.uk/images/catalog/b0f
 
 ```
 Concept 3, confirmed — Stainless Tumbler (20 oz), with the mockup:
-![Tumbler mockup, white Pitch Text on matte black tumbler, no period](examples/assets/themed-base.webp)
+
 
 Pitch Text printed in white on the tumbler:
 xDrive AFM Certification — AgileFlex Manufacturing
@@ -65,6 +65,7 @@ One small flaw to flag: the mockup adds a period after "Manufacturing" that isn'
 
 If you approve this one, the next step is to choose a print layout design.
 ```
+![Tumbler mockup, white Pitch Text on matte black tumbler, no period](./assets/themed-base.webp)
 
 (user)
 
