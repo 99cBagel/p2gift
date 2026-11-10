@@ -84,7 +84,7 @@ xDrive AFM Certification — AgileFlex Manufacturing
 
 No trailing period. Approved, or want another change?
 ```
-![Tumbler mockup, white Pitch Text on matte black tumbler, no period](./assets/layout-a.webp)
+![Tumbler mockup, white Pitch Text on matte black tumbler, no period](./assets/layout-c.webp)
 
 (user)
 
