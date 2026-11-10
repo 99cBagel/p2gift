@@ -32,7 +32,8 @@ For: the connected Agent. Read on connect, before any order.
 
 ## Resources — read first
 
-- Worked example: `p2gift://examples/default.md` + its 6 image assets.
+- Worked example: `p2gift://examples/default.md` — the text carries the rules + the flow; learn from it first.
+- Images: the example's 6 image assets are presentation links — fetch one only to show it to the user or to check a mockup, not to learn the flow.
 - Layouts: `p2gift://examples/print-layout-example.md`.
 - Live inventory: `p2gift://examples/inventory/inventory.json`.
 
