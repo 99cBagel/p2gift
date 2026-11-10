@@ -1,11 +1,12 @@
 # Muse Chat Log — Example (streamlined)
 
-DRAFT — VM only, awaiting user approval. Streamlined from
-`Muse Chat Log-Example2.md` for use at the Connect stage.
-Changes from the original: deck summary shortened; pitch confirmed
-once (the original repeats it); `xxxx` placeholder removed;
-"transparent background" corrected to "white text on black"
-(the artwork made was white on black).
+The live Connect example for p2gift, served by the MCP as
+p2gift://connect-examples/connect-example.md. Streamlined from
+`Muse Chat Log-Example2.md` for use at the Connect stage:
+deck summary shortened; pitch confirmed once (the original
+repeats it); `xxxx` placeholder removed; "transparent
+background" corrected to "white text on black" (the artwork
+made was white on black).
 Image assets are real files in examples/assets/ (mockup-tumbler.webp,
 layout-a/b/c.webp, artwork-layout-b.png), not placeholders.
 
@@ -44,7 +45,10 @@ Understood — that's the full pitch, as-is:
 
 xDrive AFM Certification — AgileFlex Manufacturing
 
-Next is to pick the gift. Here are the three p2gift concepts from that pitch:
+Next is to pick the gift.
+Click to view the available Keepsake Items. [view catalog](https://p2gift.keeg.uk/)
+
+Here are the three p2gift concepts from that pitch:
 
 1. Leather Notebook Set — for the partner / prime contractor
 Pitch embossed on the cover. Professional, for the meeting where certification and partnership are discussed.
@@ -63,7 +67,7 @@ Which one — 1, 2, or 3?
 (user)
 
 ```
-3
+I pick 3 — Stainless Tumbler (20 oz) https://p2gift.keeg.uk/images/catalog/b0fjlskf6v.jpg
 ```
 
 (assistant)

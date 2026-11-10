@@ -45,6 +45,48 @@ const CONNECT_RESOURCES = CONNECT_FILES.map((f) => ({
   mimeType: f.mimeType,
 }));
 
+// The ONE pick flow, taught identically to agents and users: after the
+// pitch is confirmed, present the 3 concepts together with a
+// [view catalog] link to the Product Page, and the user picks by
+// pasting `I pick N — <keepsake name> <image link>` — the same message
+// the Product Page's "Pick N — Paste message to Muse" button copies.
+const CATALOG_URL = "https://p2gift.keeg.uk/";
+// Only these two keepsakes are store catalog products with a Product
+// Page image. Every other keepsake gets image_url: null and a pick
+// message without a link — NEVER invent an image link.
+const CATALOG_IMAGE_URLS = {
+  "stainless-tumbler-20oz": "https://p2gift.keeg.uk/images/catalog/b0fjlskf6v.jpg",
+  "stainless-cups-5pack-12oz": "https://p2gift.keeg.uk/images/catalog/b0gtzp2ddw.jpg",
+};
+
+function catalogImageUrl(keepsakeId) {
+  return CATALOG_IMAGE_URLS[keepsakeId] ?? null;
+}
+
+function pickMessage(rank, keepsake) {
+  const imageUrl = catalogImageUrl(keepsake?.id);
+  return imageUrl
+    ? `I pick ${rank} — ${keepsake.name} ${imageUrl}`
+    : `I pick ${rank} — ${keepsake.name}`;
+}
+
+// User-facing instruction the agent can show with the concepts: the
+// [view catalog] link plus each concept's ready pick message.
+function pickInstruction(concepts) {
+  const list = concepts.map((c) => `${c.rank}. ${c.keepsake.name}\n   Paste: \`${c.pick_message}\``).join("\n");
+  return [
+    "Present these three concepts to the user together with a [view catalog] link to the Product Page. The user picks by pasting a message in this shape: `I pick N — <keepsake name> <image link>`, where the image link is that keepsake's image on the Product Page.",
+    "",
+    `Click to view the available Keepsake Items: [view catalog](${CATALOG_URL})`,
+    "",
+    list,
+    "",
+    "Which one — 1, 2, or 3?",
+  ].join("\n");
+}
+
+const HOW_TO_PICK = "After the pitch is confirmed, present the three keepsake concepts to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/). The user picks by pasting a message in this shape: `I pick N — <keepsake name> <image link>`, where the image link is that keepsake's image on the Product Page — e.g. `I pick 3 — Stainless Tumbler (20 oz) https://p2gift.keeg.uk/images/catalog/b0fjlskf6v.jpg`. Only store catalog products have an image link (Stainless Tumbler (20 oz); 5-Pack Stainless Cups (12 oz)); for any other keepsake the pick message omits the link — never invent one.";
+
 function arrayBufferToBase64(buf) {
   const bytes = new Uint8Array(buf);
   let binary = "";
@@ -63,7 +105,7 @@ const TOOLS = [
   },
   {
     name: "suggest_keepsakes",
-    description: "From one pitch, return three different gift keepsake concepts.",
+    description: "From one pitch, return three different gift keepsake concepts. Present the three concepts to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/); the user picks by pasting a message in this shape: `I pick N — <keepsake name> <image link>`. The result includes catalog_url, a pick_instruction to show the user, and each concept's image_url and ready pick_message.",
     inputSchema: {
       type: "object",
       properties: {
@@ -215,7 +257,7 @@ export async function handleMcpRequest(request, env, authProps) {
           role: "user",
           content: {
             type: "text",
-            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://connect-examples/connect-example.md, then 2) the 5 image assets in the same folder — mockup-tumbler.webp, layout-a.webp, layout-b.webp, layout-c.webp, artwork-layout-b.png. Learn the flow from that example: pitch confirmed as-is, 3 concepts, pick 1/2/3, mockup fixes, 3 layout examples, pick A/B/C, artwork review and approval, then checkout gated on quantity + recipient name/address + price. Never invent a price. Never skip a step — the Worker enforces the order with start_order / get_next_step / confirm_step. Then start with start_order at step 1 (pitch).",
+            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://connect-examples/connect-example.md, then 2) the 5 image assets in the same folder — mockup-tumbler.webp, layout-a.webp, layout-b.webp, layout-c.webp, artwork-layout-b.png. Learn the flow from that example: pitch confirmed as-is, 3 concepts — present them to the user together with a [view catalog] link to the Product Page (https://p2gift.keeg.uk/), and the user picks by pasting `I pick N — <keepsake name> <image link>` (the image link is that keepsake's image on the Product Page) — then mockup fixes, 3 layout examples, pick A/B/C, artwork review and approval, then checkout gated on quantity + recipient name/address + price. Never invent a price. Never skip a step — the Worker enforces the order with start_order / get_next_step / confirm_step. Then start with start_order at step 1 (pitch).",
           },
         }],
       });
@@ -227,7 +269,7 @@ export async function handleMcpRequest(request, env, authProps) {
     const args = params?.arguments ?? {};
     if (name === "service_info") {
       const inv = await loadInventory(env);
-      payload = result(id, textResult({ service: "PPT-to-Gift Service Worker", endpoint: "https://p2gift.keeg.uk/mcp", inventory_source: inv.source, keepsake_pool: inv.items }));
+      payload = result(id, textResult({ service: "PPT-to-Gift Service Worker", endpoint: "https://p2gift.keeg.uk/mcp", inventory_source: inv.source, keepsake_pool: inv.items, catalog_url: CATALOG_URL, how_to_pick: HOW_TO_PICK }));
     } else if (name === "start_order") {
       // The signed-in user travels with the order: the session records who
       // placed it, so the checkout draft and the store order carry that
@@ -262,7 +304,13 @@ export async function handleMcpRequest(request, env, authProps) {
       if (!args.pitch) payload = error(id, -32602, "pitch is required");
       else {
         const inv = await loadInventory(env);
-        payload = result(id, textResult({ inventory_source: inv.source, ...suggestKeepsakes({ pitch: args.pitch, recipientProfile: args.recipient_profile ?? null, topicCategory: args.topic_category ?? null, pool: inv.items }) }));
+        const suggestion = suggestKeepsakes({ pitch: args.pitch, recipientProfile: args.recipient_profile ?? null, topicCategory: args.topic_category ?? null, pool: inv.items });
+        const concepts = suggestion.concepts.map((c) => ({
+          ...c,
+          image_url: catalogImageUrl(c.keepsake?.id),
+          pick_message: pickMessage(c.rank, c.keepsake),
+        }));
+        payload = result(id, textResult({ inventory_source: inv.source, ...suggestion, concepts, catalog_url: CATALOG_URL, pick_instruction: pickInstruction(concepts) }));
       }
     } else {
       payload = error(id, -32602, `Unknown tool: ${name}`);
