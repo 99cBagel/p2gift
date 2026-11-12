@@ -5,6 +5,12 @@
  */
 export interface EmailMessage {
   to: string;
+  /**
+   * Optional carbon copy. Adapters that cannot CC ignore it (the
+   * Cloudflare binding composes a single-recipient message), the same
+   * treatment idempotencyKey gets — the send itself never depends on it.
+   */
+  cc?: string;
   subject: string;
   html: string;
   text: string;

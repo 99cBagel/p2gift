@@ -39,7 +39,7 @@ const check = async (name, fn) => {
 try {
   const db = await mf.getD1Database('DB');
 
-  // Post-0025 shape, including the generated aggregate under test.
+  // Post-0025 shape (+ 0044 customer_note), including the generated aggregate under test.
   for (const sql of [
     `CREATE TABLE orders (
        id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,6 +72,7 @@ try {
        provider_event_id TEXT,
        reason TEXT,
        note TEXT,
+       customer_note TEXT,
        created_by TEXT,
        idempotency_key TEXT NOT NULL UNIQUE,
        reverses_refund_id INTEGER UNIQUE REFERENCES refunds(id),

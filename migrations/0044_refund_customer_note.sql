@@ -1,0 +1,12 @@
+-- 0044: a customer-facing note on a refund.
+-- Additive.
+--
+-- The refunds ledger already carries an internal `note` ("how it was
+-- sent") that the customer never sees. The operator also needs a note
+-- FOR the customer — a sentence that rides the refund notification
+-- email ("Sorry the tumbler arrived chipped — full refund issued").
+-- It belongs on the refund row itself: an order can have several
+-- refunds, each with its own wording, and the row is the audit record
+-- of what was said. The shared refund-notice sender reads it from the
+-- call that recognised the refund and prints it in the email.
+ALTER TABLE refunds ADD COLUMN customer_note TEXT;

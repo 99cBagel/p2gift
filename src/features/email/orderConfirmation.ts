@@ -273,6 +273,12 @@ export function orderRefundedEmail(
   storeName: string,
   /** Tokenized guest link (allowlisted email position); null = omit the link. */
   guestOrderUrl?: string | null,
+  /**
+   * The operator's note FOR the customer (refunds.customer_note), printed
+   * verbatim in the email. Distinct from the internal ledger note, which
+   * never reaches this builder.
+   */
+  customerNote?: string | null,
 ): EmailMessage {
   const cfg = getConfig();
   const num = orderReference(order.public_id, order.id, cfg.orderNumber);
@@ -295,8 +301,10 @@ export function orderRefundedEmail(
   const priorLine =
     refundedCents > refundCents ? `Total refunded so far: ${money(refundedCents)}` : null;
 
+  const note = (customerNote ?? '').trim();
   const text = [
     full ? `Your order #${num} has been refunded.` : `A refund was issued for order #${num}.`,
+    ...(note ? [``, `A note from ${storeName}:`, note] : []),
     ``,
     `Refunded: ${money(refundCents)}`,
     ...(priorLine ? [priorLine] : []),
@@ -325,6 +333,11 @@ export function orderRefundedEmail(
             `<td align="right" style="padding:4px 0;font-size:14px;${r.strong ? 'font-weight:600;' : ''}">${escapeHtml(r.amount)}</td></tr>`,
         )
         .join('')}</table>` +
+      (note
+        ? `<div style="margin:0 0 16px;border-left:3px solid ${PALETTE.muted};padding:8px 12px;background:#fafafa;">` +
+          `<p style="margin:0 0 4px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:${PALETTE.muted};">A note from ${escapeHtml(storeName)}</p>` +
+          `<p style="margin:0;font-size:14px;line-height:1.6;">${escapeHtml(note)}</p></div>`
+        : '') +
       `<p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:${PALETTE.muted};">${escapeHtml(timing)}</p>` +
       (orderUrl ? emailButton(orderUrl, 'View your order') : ''),
   });

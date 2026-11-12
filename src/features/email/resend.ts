@@ -24,6 +24,7 @@ export function createResendEmail(
         body: JSON.stringify({
           from: fromHeader,
           to: [msg.to],
+          ...(msg.cc ? { cc: [msg.cc] } : {}),
           subject: msg.subject,
           html: msg.html,
           text: msg.text,

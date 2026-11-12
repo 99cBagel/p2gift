@@ -35,6 +35,7 @@ export type SettingKey =
   | 'parcel_default' // JSON {length,width,height} — remembered box dimensions for label purchase
   | 'admin_password_hash' // PBKDF2 hash of the admin password (set at setup). NOT in StoreSettings — read only by the auth layer, never loaded into locals.
   | 'admin_google_emails' // CSV of Google accounts allowed into /admin via Google sign-in. NOT in StoreSettings — read only by the auth layer; absent/empty = Google admin sign-in off.
+  | 'refund_email_cc' // CC address for the customer refund notification. Read only by the refund notice sender; absent = the built-in default (hello@keeg.uk), empty = no CC.
   // Integrations configured in the admin dashboard (non-secret halves; the keys
   // live encrypted in the vault — see features/secrets/store.ts).
   | 'email_enabled' // '0' = order/login email off; absent = on

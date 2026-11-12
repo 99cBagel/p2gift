@@ -98,6 +98,7 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
   };
   const admin = String(form.get('_admin') ?? '') || null;
   const note = String(form.get('note') ?? '').trim() || null;
+  const customerNote = String(form.get('customer_note') ?? '').trim() || null;
   const reason = String(form.get('reason') ?? '').trim() || null;
 
   if (action === 'resolve_inventory_exception') {
@@ -251,13 +252,14 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
       provider: order.payment_method ?? 'stripe',
       idempotencyKey: `admin:provider-refund:${id}:${order.amount_total_cents}`,
       reason: reason ?? 'Full refund issued from minshop',
+      customerNote,
       createdBy: admin,
     });
     // Precisely because that webhook is a no-op, it will not mail the customer
     // either — so this path has to. Whichever of the two recognises the money
     // first sends exactly one notice.
     if (synced.ok && synced.advanced) {
-      await sendRefundNotice(id, synced.deltaCents, new URL(request.url).origin);
+      await sendRefundNotice(id, synced.deltaCents, new URL(request.url).origin, customerNote);
     }
     return back;
   }
@@ -280,6 +282,7 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
       provider: order.payment_method,
       reason,
       note,
+      customerNote,
       createdBy: admin,
     });
 
@@ -296,7 +299,7 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
       return fail('This order cannot be refunded.');
     }
     // sendRefundNotice applies the demo rule itself, so demo orders stay silent.
-    await sendRefundNotice(id, amount, new URL(request.url).origin);
+    await sendRefundNotice(id, amount, new URL(request.url).origin, customerNote);
     return back;
   }
 

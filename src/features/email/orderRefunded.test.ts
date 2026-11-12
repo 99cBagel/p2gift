@@ -68,4 +68,25 @@ describe('orderRefundedEmail', () => {
     const first = orderRefundedEmail(order({ refunded_cents: 2500 }), 2500, 2500, 'S');
     expect(first.text).not.toContain('Total refunded so far');
   });
+
+  it('prints the operator’s customer note in text and html, escaped', () => {
+    const msg = orderRefundedEmail(
+      order({ refunded_cents: 2500 }),
+      2500,
+      2500,
+      'S',
+      null,
+      'Sorry it arrived <chipped> — full refund issued.',
+    );
+    expect(msg.text).toContain('A note from S:');
+    expect(msg.text).toContain('Sorry it arrived <chipped> — full refund issued.');
+    expect(msg.html).toContain('Sorry it arrived &lt;chipped&gt; — full refund issued.');
+    expect(msg.html).not.toContain('<chipped>');
+  });
+
+  it('omits the note block when no customer note was given', () => {
+    const msg = orderRefundedEmail(order({ refunded_cents: 2500 }), 2500, 2500, 'S');
+    expect(msg.text).not.toContain('A note from');
+    expect(msg.html).not.toContain('A note from');
+  });
 });

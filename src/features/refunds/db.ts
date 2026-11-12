@@ -66,6 +66,8 @@ export interface Refund {
   provider_event_id: string | null;
   reason: string | null;
   note: string | null;
+  /** Operator wording FOR the customer, printed in the refund email. */
+  customer_note: string | null;
   created_by: string | null;
   idempotency_key: string;
   reverses_refund_id: number | null;
@@ -127,6 +129,7 @@ export interface ExternalRefundInput {
   kind?: Extract<RefundKind, 'manual_external' | 'demo'>;
   reason?: string | null;
   note?: string | null;
+  customerNote?: string | null;
   createdBy?: string | null;
   provider?: string | null;
 }
@@ -158,6 +161,7 @@ export async function recordExternalRefund(
     kind = 'manual_external',
     reason = null,
     note = null,
+    customerNote = null,
     createdBy = null,
     provider = null,
   } = input;
@@ -172,9 +176,9 @@ export async function recordExternalRefund(
       .prepare(
         `INSERT INTO refunds (
            public_id, order_id, kind, status, amount_cents, provider,
-           reason, note, created_by, idempotency_key, created_at, updated_at
+           reason, note, customer_note, created_by, idempotency_key, created_at, updated_at
          )
-         SELECT ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now')
+         SELECT ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now')
            FROM orders
           WHERE id = ?
             AND status IN ${REFUNDABLE_STATUSES}
@@ -190,6 +194,7 @@ export async function recordExternalRefund(
         provider,
         reason,
         note,
+        customerNote,
         createdBy,
         idempotencyKey,
         orderId,
@@ -254,6 +259,7 @@ export interface ProviderSyncInput {
   providerRefundId?: string | null;
   providerEventId?: string | null;
   reason?: string | null;
+  customerNote?: string | null;
   createdBy?: string | null;
 }
 
@@ -292,6 +298,7 @@ export async function syncProviderRefund(
     providerRefundId = null,
     providerEventId = null,
     reason = null,
+    customerNote = null,
     createdBy = null,
   } = input;
 
@@ -317,11 +324,11 @@ export async function syncProviderRefund(
       .prepare(
         `INSERT INTO refunds (
            public_id, order_id, kind, status, amount_cents, provider,
-           provider_refund_id, provider_event_id, reason, created_by,
+           provider_refund_id, provider_event_id, reason, customer_note, created_by,
            idempotency_key, created_at, updated_at
          )
          SELECT ?, ?, 'provider_sync', 'pending', ? - provider_refunded_cents, ?,
-                ?, ?, ?, ?, ?, datetime('now'), datetime('now')
+                ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now')
            FROM orders
           WHERE id = ? AND provider_refunded_cents < ?
          ON CONFLICT(idempotency_key) DO NOTHING
@@ -335,6 +342,7 @@ export async function syncProviderRefund(
         providerRefundId,
         providerEventId,
         reason,
+        customerNote,
         createdBy,
         idempotencyKey,
         orderId,
