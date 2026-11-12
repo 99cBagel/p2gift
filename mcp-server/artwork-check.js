@@ -1,14 +1,13 @@
-// The 2-layer Final Print Artwork shape check, used by prepare_checkout.
+// The Final Print Artwork shape check, used by prepare_checkout.
 //
-// Layer 1 (this file, deterministic): the universal file rules —
-//   exactly one file (the submission itself), PNG only, under 15 MB,
-//   transparent background, single color only.
-// Layer 2 (below, product-aware): the gift item's own rules from the
-//   inventory (treatment, print area, special notes) plus a Workers AI
-//   negative check of the image content — text as printed vs the
-//   confirmed Pitch Text, the picked layout, no logo, nothing outside
-//   the product's printable area. AI does the seeing; the verdict and
-//   its reasons are returned to the agent verbatim for resubmission.
+// Deterministic file rules: exactly one file (the submission itself),
+// PNG only, under 15 MB, transparent background, single color only.
+// The visual side (text as printed vs the confirmed Pitch Text, the
+// picked layout, no logo, the item's print area) is covered by the
+// user's own artwork approval at workflow step 4. A Workers AI visual
+// layer used to run here as well; it failed closed whenever the model
+// answered unreadably and blocked good orders, so the owner removed
+// it (2026-11-12).
 
 import { isPng, isJpeg, analyzePng } from "./png.js";
 
@@ -65,72 +64,4 @@ export async function checkArtworkL1(bytes) {
     );
   }
   return { pass: reasons.length === 0, reasons, facts };
-}
-
-const AI_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
-
-export function artworkRulesText(item) {
-  const r = item?.artwork_rules || {};
-  const lines = [
-    `Gift item: ${item?.name || item?.id || "unknown"}`,
-    `Treatment: ${r.treatment || item?.treatment || "not specified"}`,
-    `Surface: ${r.surface || item?.surface || "not specified"}`,
-    `Print area: ${r.print_area || "not specified by the seller"}`,
-  ];
-  for (const note of r.notes || []) lines.push(`Note: ${note}`);
-  return lines.join("\n");
-}
-
-export async function checkArtworkL2(env, { base64, pitchText, layout, item }) {
-  if (!env?.AI) {
-    return { unavailable: true, reason: "The AI check is not configured on this Worker (no AI binding)." };
-  }
-  const prompt = [
-    "You are the artwork checker for a print-on-gift service. Examine the submitted Final Print Artwork image and report ONLY problems, from this checklist:",
-    "1. The image must print exactly this Pitch Text, character for character, with no added or missing words or punctuation:",
-    `   "${pitchText}"`,
-    `2. The arrangement must match Print Layout Design ${layout || "?"} (A = centered lines, B = small top line, rule, then large name lines, C = two lines keeping the em dash).`,
-    "3. There must be no logo, brand mark, icon, or any graphic element — text only.",
-    "4. The design must respect the gift item's rules:",
-    artworkRulesText(item),
-    "5. Nothing in the design may look like it would fall outside the item's print area.",
-    "",
-    'Answer with strict JSON only: {"transcription": "<the exact text you read in the image>", "problems": ["<problem>", ...], "verdict": "pass" or "fail"}.',
-    'If there are no problems, problems is [] and verdict is "pass".',
-  ].join("\n");
-
-  let raw;
-  try {
-    const out = await env.AI.run(AI_MODEL, {
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${base64}` } },
-          ],
-        },
-      ],
-    });
-    raw = typeof out?.response === "string" ? out.response : JSON.stringify(out?.response ?? out ?? "");
-  } catch (err) {
-    return { unavailable: true, reason: `The AI check could not run: ${err.message}` };
-  }
-  const start = raw.indexOf("{"), end = raw.lastIndexOf("}");
-  if (start < 0 || end <= start) {
-    return { unavailable: true, reason: "The AI check returned an unreadable answer." };
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw.slice(start, end + 1));
-  } catch {
-    return { unavailable: true, reason: "The AI check returned an unreadable answer." };
-  }
-  const problems = Array.isArray(parsed.problems) ? parsed.problems.map(String).filter(Boolean) : [];
-  const fail = parsed.verdict === "fail" || problems.length > 0;
-  return {
-    pass: !fail,
-    reasons: problems.map((p) => `AI check: ${p}`),
-    transcription: typeof parsed.transcription === "string" ? parsed.transcription : null,
-  };
 }

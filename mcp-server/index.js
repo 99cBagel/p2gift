@@ -38,7 +38,7 @@ import {
   MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR,
 } from "./rate-limit.js";
 
-const SERVER = { name: "p2gift", version: "0.3.0" };
+const SERVER = { name: "p2gift", version: "0.3.1" };
 
 
 // Worked examples for few-shot (N-shot) learning, stored in R2 under
@@ -184,7 +184,7 @@ const TOOLS = [
   },
   {
     name: "prepare_checkout",
-    description: "Prepare the store checkout for a completed workflow session (step done, checkout draft present). Runs the shape checks: cart contents against the live catalog (item, variant, quantity, stock, shipping address, and the quoted price must equal the live catalog total), then the 2-layer Final Print Artwork check (Layer 1: PNG only, under 15 MB, transparent background, single color; Layer 2: the gift item's own print/engraving rules plus an AI negative check — text as printed vs the confirmed Pitch Text, the picked layout, no logo). On any failure it returns the reasons so the artwork or draft can be fixed and resubmitted. On success it stores the artwork with the order-to-be, prefills the cart, and returns checkout_url — a signed, single-use link that expires in about 15 minutes. The user opens it, signs in in the browser (Google, GitHub, or a US phone code), sees the locked price and cart, and pays on the store page; the card never passes through the agent.",
+    description: "Prepare the store checkout for a completed workflow session (step done, checkout draft present). Runs the shape checks: cart contents against the live catalog (item, variant, quantity, stock, shipping address, and the quoted price must equal the live catalog total), then the Final Print Artwork file check (PNG only, under 15 MB, transparent background, single color; the visual side — text as printed, the picked layout, no logo — is the user's artwork approval at step 4). On any failure it returns the reasons so the artwork or draft can be fixed and resubmitted. On success it stores the artwork with the order-to-be, prefills the cart, and returns checkout_url — a signed, single-use link that expires in about 15 minutes. The user opens it, signs in in the browser (Google, GitHub, or a US phone code), sees the locked price and cart, and pays on the store page; the card never passes through the agent.",
     inputSchema: {
       type: "object",
       properties: {

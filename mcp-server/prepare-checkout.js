@@ -6,10 +6,13 @@
 //      variant exists, the quantity is sane and in stock, the shipping
 //      address is complete, and the quoted price EQUALS the live
 //      catalog price. A mismatch is rejected, never adjusted.
-//   2. Artwork Layer 1 — the Final Print Artwork file rules
-//      (PNG only, under 15 MB, transparent background, single color).
-//   3. Artwork Layer 2 — the gift item's own rules plus the Workers AI
-//      negative check (see artwork-check.js).
+//   2. Artwork — the Final Print Artwork file rules (PNG only,
+//      under 15 MB, transparent background, single color). The visual
+//      side (text as printed, layout, no logo) is the user's own
+//      artwork approval at workflow step 4. A Workers AI visual check
+//      used to gate here too; it failed closed on unreadable model
+//      answers and blocked good orders, so the owner removed it
+//      (2026-11-12) — do not re-add a model gate on this path.
 // Only when every check passes does it act: the artwork is stored in
 // the private FILES bucket, a prefill_carts row is written, and the
 // caller gets the checkout link the human opens to pay. Any failure
@@ -17,7 +20,7 @@
 // failed artwork attempts the guidance points at Live Connect.
 
 import { loadInventory } from "./inventory.js";
-import { checkArtworkL1, checkArtworkL2 } from "./artwork-check.js";
+import { checkArtworkL1 } from "./artwork-check.js";
 
 const SITE = "https://p2gift.keeg.uk";
 // The checkout link is the gated human step of the v0.3.0 model: signed
@@ -137,7 +140,7 @@ export async function prepareCheckout(env, authProps, input = {}) {
   }
   if (reasons.length) return { rejected: true, stage: "cart", reasons };
 
-  // ── Artwork shape: Layer 1, then Layer 2 ───────────────────────────
+  // ── Artwork shape: the file rules ──────────────────────────────────
   const attempts = Number(input.artwork_attempts ?? 0);
   const resubmitGuidance =
     attempts + 1 >= 2
@@ -149,30 +152,6 @@ export async function prepareCheckout(env, authProps, input = {}) {
   if (!l1.pass) {
     return { rejected: true, stage: "artwork_layer_1", reasons: l1.reasons, artwork_facts: l1.facts, artwork_attempts: attempts + 1, next: resubmitGuidance };
   }
-  const l2 = await checkArtworkL2(env, {
-    base64,
-    pitchText: input.pitch_text || session.pitch || "",
-    layout: input.layout || session.layout || null,
-    item,
-  });
-  if (l2.unavailable) {
-    return {
-      error: "artwork_check_unavailable",
-      reason: l2.reason,
-      next: "The order cannot be prepared while the Layer 2 artwork check is unavailable. Tell the user, or use Live Connect (draft an email to hello@keeg.uk).",
-    };
-  }
-  if (!l2.pass) {
-    return {
-      rejected: true,
-      stage: "artwork_layer_2",
-      reasons: l2.reasons,
-      ai_transcription: l2.transcription,
-      artwork_attempts: attempts + 1,
-      next: resubmitGuidance,
-    };
-  }
-
   // ── All checks passed: store the artwork, write the prefill ───────
   if (!env?.FILES) return { error: "The private files bucket is not available to the MCP server." };
   const token = newToken();

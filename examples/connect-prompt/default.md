@@ -20,7 +20,7 @@ For: the connected Agent. Read on connect, before any order.
 - `pitch_text` = Pitch Text / Feature Pitch. Never "snippet".
 - `gift_item` = gift / gift item — the item the pitch prints on.
 - `print_layout_design` = Print Layout Design — A, B, or C.
-- `final_print_artwork` = Final Print Artwork — print-ready PNG: transparent background, single color, no logo, one file, under 15 MB. Shape-checked in 2 layers before checkout (see `prepare_checkout`).
+- `final_print_artwork` = Final Print Artwork — print-ready PNG: transparent background, single color, no logo, one file, under 15 MB. Shape-checked before checkout (see `prepare_checkout`); the visual check is the user's artwork approval.
 
 ## Flow — 5 steps, in order, no skipping
 
@@ -48,7 +48,7 @@ For: the connected Agent. Read on connect, before any order.
 | `start_order` | Opens an order session and returns step 1 (pitch). |
 | `get_next_step` | Returns the current step for a session. |
 | `confirm_step` | Confirms the current step and advances exactly one. Rejects out-of-order confirmations. |
-| `prepare_checkout` | The checkout preparation. Shape-checks a completed order — cart vs the live catalog (item, variant, qty, stock, address, quoted price must equal the catalog total) and the Final Print Artwork in 2 layers: L1 file rules (PNG only, under 15 MB, transparent background, single color); L2 the gift item's own print/engraving rules + an AI negative check (text as printed vs the Pitch Text, the picked layout, no logo). Pass → a prefilled checkout link (expires in ~15 min) — the user signs in in the browser, sees the locked price and cart, and pays. Fail → the reasons; fix and resubmit. |
+| `prepare_checkout` | The checkout preparation. Shape-checks a completed order — cart vs the live catalog (item, variant, qty, stock, address, quoted price must equal the catalog total) and the Final Print Artwork file rules (PNG only, under 15 MB, transparent background, single color). The visual side (text as printed, layout, no logo) is covered by the user's artwork approval. Pass → a prefilled checkout link (expires in ~15 min) — the user signs in in the browser, sees the locked price and cart, and pays. Fail → the reasons; fix and resubmit. |
 
 ## Live Connect
 
