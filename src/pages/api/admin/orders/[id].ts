@@ -7,7 +7,18 @@ import {
   unfulfillOrder,
   type ShippingAddress,
   resolveInventoryException,
+  listOrderItems,
 } from '../../../../features/orders/db';
+import {
+  addItemFile,
+  getItemFile,
+  itemHasCurrentFile,
+  itemFileKey,
+  setCurrentItemFile,
+  uploadMime,
+  validateItemFileUpload,
+} from '../../../../features/orders/itemFiles';
+import { getFileStorage } from '../../../../features/storage';
 import { getSecret } from '../../../../features/secrets/store';
 import { setSetting } from '../../../../features/settings/db';
 import {
@@ -49,7 +60,11 @@ import { getStoreSettings } from '../../../../features/settings/db';
 import { shouldSendCustomerOrderEmail } from '../../../../features/email/orderPolicy';
 import { getPaymentProvider, type PaymentMethod } from '../../../../features/payments';
 import { formatPrice } from '../../../../config';
-import { parseOrderOrLegacyPublicId, parsePublicId } from '../../../../features/ids/publicId';
+import {
+  parseOrderOrLegacyPublicId,
+  parsePublicId,
+  generatePublicId,
+} from '../../../../features/ids/publicId';
 
 export const prerender = false;
 
@@ -90,6 +105,61 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
     if (!exceptionId) return fail('Invalid inventory exception.');
     const resolved = await resolveInventoryException(env.DB, id, exceptionId);
     return resolved ? notice('Inventory exception marked reconciled.') : fail('That inventory exception is already resolved or does not belong to this order.');
+  }
+
+  // Park another file on one of this order's items (the multi-file list,
+  // migration 0043): a corrected artwork, a maker proof. The object goes
+  // to the private FILES bucket; the row only points at it. Checking
+  // "make current" — or the item having no current print file yet —
+  // also mirrors the file onto the item, which is what the customer's
+  // download reads.
+  if (action === 'file_upload') {
+    const itemPublicId = parsePublicId(form.get('item_id'), 'orderItem');
+    const items = await listOrderItems(env.DB, id);
+    const item = items.find((it) => it.public_id === itemPublicId);
+    if (!item || !item.public_id) return fail('That item does not belong to this order.');
+    const uploaded = form.get('file');
+    if (!(uploaded instanceof File) || uploaded.size === 0) {
+      return fail('Choose a file to park on this item.');
+    }
+    const mime = uploadMime(uploaded.name, uploaded.type);
+    const check = validateItemFileUpload({
+      kind: String(form.get('kind') ?? 'other'),
+      fileName: uploaded.name,
+      mime,
+      sizeBytes: uploaded.size,
+    });
+    if (!check.ok) return fail(check.error);
+    const filePublicId = generatePublicId('orderItemFile');
+    const key = itemFileKey(item.public_id, filePublicId, uploaded.name);
+    await getFileStorage().put(key, await uploaded.arrayBuffer(), mime ?? 'application/octet-stream');
+    const makeCurrent =
+      form.get('make_current') != null || !(await itemHasCurrentFile(env.DB, item.id));
+    await addItemFile(env.DB, {
+      orderItemId: item.id,
+      fileKey: key,
+      fileName: uploaded.name,
+      mime,
+      sizeBytes: uploaded.size,
+      kind: check.kind,
+      uploadedBy: 'admin',
+      makeCurrent,
+      publicId: filePublicId,
+    });
+    return notice(
+      makeCurrent
+        ? `Parked ${uploaded.name} on the order and made it the current print file.`
+        : `Parked ${uploaded.name} on the order.`,
+    );
+  }
+
+  // Flag an already-parked file as the item's current print file.
+  if (action === 'file_set_current') {
+    const filePublicId = parsePublicId(form.get('file_id'), 'orderItemFile');
+    const file = filePublicId ? await getItemFile(env.DB, id, filePublicId) : null;
+    if (!file) return fail('That file does not belong to this order.');
+    await setCurrentItemFile(env.DB, file.order_item_id, file.id);
+    return notice('Current print file updated.');
   }
 
   // Rotate the guest access token and email the customer the replacement link.

@@ -25,6 +25,11 @@ import { shouldSendCustomerOrderEmail } from '../../../features/email/orderPolic
 import RefundPanel from '../../../features/refunds/RefundPanel.astro';
 import { formatWeight } from '../../../features/shipping/weight';
 import { parseOrderOrLegacyPublicId } from '../../../features/ids/publicId';
+import {
+  listFilesForOrder,
+  formatFileSize,
+  type OrderItemFileWithItem,
+} from '../../../features/orders/itemFiles';
 
 // The route param is the order public ID — ord_ or a preserved legacy shape
 // (hex32/UUID). Numeric row ids are not accepted.
@@ -49,6 +54,14 @@ const paymentLabel = order.payment_method
   : '—';
 const timeZone = Astro.locals.settings?.timeZone ?? getConfig().timeZone;
 const items = await listOrderItemsWithImages(env.DB, order.id);
+// The files parked on this order's items (migration 0043), grouped by item.
+const itemFiles = await listFilesForOrder(env.DB, order.id);
+const filesByItemId = new Map<number, OrderItemFileWithItem[]>();
+for (const f of itemFiles) {
+  const list = filesByItemId.get(f.order_item_id) ?? [];
+  list.push(f);
+  filesByItemId.set(f.order_item_id, list);
+}
 const inventoryExceptions = await listOrderInventoryExceptions(env.DB, order.id);
 const fulfilled = order.fulfillment_status === 'fulfilled';
 const weightUnit = Astro.locals.settings?.weightUnit ?? 'g';
@@ -691,6 +704,142 @@ const willEmailCustomer =
         Note: line items total {formatPrice(itemsTotalCents, order.currency)} differs from the
         order total — verify against the payment provider.
       </p>
+    )
+  }
+
+  {
+    items.length > 0 && (
+      <>
+        <h2 class="mb-3 mt-8 text-xs uppercase tracking-widest text-gray-400">Order files</h2>
+        <div class="space-y-4">
+          {items.map((it) => {
+            const files = filesByItemId.get(it.id) ?? [];
+            return (
+              <div class="rounded border border-line bg-white/60 p-3">
+                <p class="mb-2 text-sm font-medium">{it.name}</p>
+                {files.length === 0 && (
+                  <p class="text-sm text-gray-400">No files parked on this item yet.</p>
+                )}
+                <ul class="divide-y divide-line">
+                  {files.map((f) => {
+                    const viewUrl = f.public_id
+                      ? `/admin/orders/${publicId}/files/${f.public_id}`
+                      : null;
+                    const isImage = (f.file_mime ?? '').startsWith('image/');
+                    return (
+                      <li class="flex flex-wrap items-center gap-3 py-2">
+                        {isImage && viewUrl ? (
+                          <a
+                            href={viewUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            class="block rounded bg-neutral-800 p-1"
+                          >
+                            <img
+                              src={viewUrl}
+                              alt={f.file_name ?? 'parked file'}
+                              class="h-14 w-14 object-contain"
+                              loading="lazy"
+                            />
+                          </a>
+                        ) : (
+                          <span class="flex h-14 w-14 items-center justify-center rounded bg-neutral-100 text-[10px] uppercase tracking-wide text-gray-500">
+                            {f.kind}
+                          </span>
+                        )}
+                        <div class="min-w-0 flex-1 text-sm">
+                          <p class="truncate font-medium">
+                            {f.file_name ?? f.file_key}
+                            {f.is_current === 1 && (
+                              <span class="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                                Current print file
+                              </span>
+                            )}
+                          </p>
+                          <p class="text-xs text-gray-500">
+                            {f.kind} · {formatFileSize(f.file_size_bytes)} · parked{' '}
+                            {formatDate(f.created_at, undefined, timeZone)} · {f.downloads}{' '}
+                            download{f.downloads === 1 ? '' : 's'}
+                            {f.uploaded_by ? ` · by ${f.uploaded_by}` : ''}
+                          </p>
+                        </div>
+                        {viewUrl && (
+                          <a
+                            href={viewUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            class="text-xs font-medium uppercase tracking-wider text-accent hover:underline"
+                          >
+                            View
+                          </a>
+                        )}
+                        {viewUrl && (
+                          <a
+                            href={`${viewUrl}?download=1`}
+                            class="text-xs font-medium uppercase tracking-wider text-accent hover:underline"
+                          >
+                            Download
+                          </a>
+                        )}
+                        {f.is_current !== 1 && f.public_id && (
+                          <form method="POST" action={`/api/admin/orders/${publicId}`}>
+                            <input type="hidden" name="_action" value="file_set_current" />
+                            <input type="hidden" name="file_id" value={f.public_id} />
+                            <button
+                              type="submit"
+                              class="text-xs font-medium uppercase tracking-wider text-gray-600 hover:text-brand"
+                            >
+                              Make current
+                            </button>
+                          </form>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {it.public_id && (
+                  <form
+                    method="POST"
+                    action={`/api/admin/orders/${publicId}`}
+                    enctype="multipart/form-data"
+                    class="mt-3 flex flex-wrap items-end gap-3 border-t border-line pt-3"
+                  >
+                    <input type="hidden" name="_action" value="file_upload" />
+                    <input type="hidden" name="item_id" value={it.public_id} />
+                    <label class="text-xs text-gray-600">
+                      Add a file
+                      <input type="file" name="file" required class="mt-1 block text-sm" />
+                    </label>
+                    <label class="text-xs text-gray-600">
+                      Kind
+                      <select name="kind" class="mt-1 block rounded border border-line px-2 py-1 text-sm">
+                        <option value="artwork">Artwork</option>
+                        <option value="proof">Maker proof</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+                    <label class="flex items-center gap-1 pb-1 text-xs text-gray-600">
+                      <input type="checkbox" name="make_current" /> Make current print file
+                    </label>
+                    <button
+                      type="submit"
+                      class="rounded-md border border-line px-3 py-1.5 text-xs font-medium uppercase tracking-wider hover:border-brand hover:text-brand"
+                    >
+                      Park file
+                    </button>
+                  </form>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p class="mt-2 text-xs text-gray-500">
+          Files live in the store's private storage and are reachable only through this
+          signed-in page. The current print file is the one the customer's order page offers
+          for download. Artwork previews sit on a dark backdrop because the print ink is
+          usually white on transparent.
+        </p>
+      </>
     )
   }
 </AdminLayout>
