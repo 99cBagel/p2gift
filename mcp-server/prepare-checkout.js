@@ -189,7 +189,7 @@ export async function prepareCheckout(env, authProps, input = {}) {
       currency: "usd",
       ship_to: `${shipping.name}, ${shipping.city}, ${shipping.postal}, ${shipping.country}`,
     },
-    artwork: { ...l1.facts, ai_transcription: l2.transcription },
+    artwork: { ...l1.facts },
     instruction:
       "Give the user the checkout_url now — it expires in about 15 minutes. They open it, the cart is prefilled with the gift item, they sign in in the browser (Google, GitHub, or a US phone code), see the locked price and cart, and pay on the store page — the card never passes through the agent. The approved Final Print Artwork rides the order. If the link expires, call prepare_checkout again to re-issue it.",
   };
