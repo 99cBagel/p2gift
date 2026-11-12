@@ -199,7 +199,7 @@ describe('private deliverable provisioning', () => {
   });
 
   // wrangler rejects an unsubstituted placeholder as a bucket name, and the
-  // theme jobs render the template themselves — so a placeholder added here but
+  // verify job renders the template itself — so a placeholder added here but
   // not to the workflow only fails in CI, after a push. Pin the two together.
   it('substitutes every template placeholder in CI', () => {
     const placeholders = [
@@ -208,9 +208,10 @@ describe('private deliverable provisioning', () => {
     const workflow = readFileSync('.github/workflows/verify.yml', 'utf8');
     expect(placeholders.length).toBeGreaterThan(0);
     for (const placeholder of placeholders) {
-      // Both render sites must cover it: the verify job and the theme matrix.
+      // The one render site must cover it: the verify job (the per-theme
+      // matrix that used to be the second site was dropped on 2026-11-12).
       const substitutions = workflow.split(`s/${placeholder}/`).length - 1;
-      expect(substitutions, `${placeholder} is not substituted at both render sites`).toBe(2);
+      expect(substitutions, `${placeholder} is not substituted at the render site`).toBe(1);
     }
   });
 
