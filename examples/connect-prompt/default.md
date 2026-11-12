@@ -28,7 +28,7 @@ For: the connected Agent. Read on connect, before any order.
 2. **gift** — suggest gift items; user picks 1.
 3. **mockup** — show the pick; Print Layout Designs A/B/C.
 4. **artwork** — Final Print Artwork; user approves.
-5. **checkout** — qty + recipient + price. Never invent any of them. Then `prepare_checkout` shape-checks the order and returns the prefilled checkout link — the user opens it and pays on the store page.
+5. **checkout** — qty + recipient + price. Never invent any of them. Then `prepare_checkout` shape-checks the order and returns the prefilled checkout link — it expires in about 15 minutes, so hand it over right away. The user opens it, signs in in the browser (Google, GitHub, or a US phone code), sees the locked price and cart, and pays on the store page. No sign-in is needed to connect or to run steps 1–5 — the sign-in happens only there, at payment. If the link expires, call `prepare_checkout` again to re-issue it.
 
 ## Resources — read first
 
@@ -48,7 +48,7 @@ For: the connected Agent. Read on connect, before any order.
 | `start_order` | Opens an order session and returns step 1 (pitch). |
 | `get_next_step` | Returns the current step for a session. |
 | `confirm_step` | Confirms the current step and advances exactly one. Rejects out-of-order confirmations. |
-| `prepare_checkout` | The checkout preparation. Shape-checks a completed order — cart vs the live catalog (item, variant, qty, stock, address, quoted price must equal the catalog total) and the Final Print Artwork in 2 layers: L1 file rules (PNG only, under 15 MB, transparent background, single color); L2 the gift item's own print/engraving rules + an AI negative check (text as printed vs the Pitch Text, the picked layout, no logo). Pass → a prefilled checkout link for the user to pay. Fail → the reasons; fix and resubmit. |
+| `prepare_checkout` | The checkout preparation. Shape-checks a completed order — cart vs the live catalog (item, variant, qty, stock, address, quoted price must equal the catalog total) and the Final Print Artwork in 2 layers: L1 file rules (PNG only, under 15 MB, transparent background, single color); L2 the gift item's own print/engraving rules + an AI negative check (text as printed vs the Pitch Text, the picked layout, no logo). Pass → a prefilled checkout link (expires in ~15 min) — the user signs in in the browser, sees the locked price and cart, and pays. Fail → the reasons; fix and resubmit. |
 
 ## Live Connect
 

@@ -13,7 +13,8 @@ import {
   deleteGuestAccessIfUnsettled,
 } from '../../features/orders/guestAccess.ts';
 import { lineUnitPriceCents } from '../../features/cart/key';
-import { applyPrefillByToken } from '../../features/orders/prefill';
+import { applyPrefillByToken, getOpenPrefill, type PrefillRecord } from '../../features/orders/prefill';
+import { gateIdentityForRequest } from '../../features/auth/checkoutGate';
 import { productImageUrl } from '../../features/products/image';
 import { readCart, resolveCart } from '../../features/cart/cart';
 import {
@@ -103,6 +104,70 @@ const cjson = (data: unknown, status = 200): Response =>
   });
 
 export const OPTIONS: APIRoute = () => new Response(null, { status: 204, headers: CHECKOUT_CORS });
+
+// ---------------------------------------------------------------------------
+// Checkout gate (v0.3.0): a checkout that carries an OPEN agent prefill
+// may only proceed once the human has signed in in this browser
+// (features/auth/checkoutGate.ts), and only for exactly the cart and
+// price the agent locked. A manual checkout (no prefill) is untouched.
+// ---------------------------------------------------------------------------
+
+const GATE_SIGNIN_URL = '/checkout/signin?next=/cart';
+const GATE_LOCK_MESSAGE =
+  'This checkout was locked by your agent (cart and price). If anything was changed, ask your agent to prepare the checkout again.';
+
+async function gateBlockFor(
+  request: Request,
+  prefillToken: string | undefined,
+  mode: 'json' | 'form',
+): Promise<{ rec: PrefillRecord | null; block: Response | null }> {
+  if (!prefillToken) return { rec: null, block: null };
+  const rec = await getOpenPrefill(env.DB, prefillToken);
+  if (!rec) return { rec: null, block: null };
+  const identity = await gateIdentityForRequest(request, env);
+  if (identity) return { rec, block: null };
+  const block =
+    mode === 'json'
+      ? cjson(
+          {
+            error:
+              'This checkout was prepared by an agent and needs the buyer to sign in in the browser before payment.',
+            signin_url: GATE_SIGNIN_URL,
+          },
+          403,
+        )
+      : new Response(null, { status: 303, headers: { Location: GATE_SIGNIN_URL } });
+  return { rec, block };
+}
+
+/** Null when the lines are exactly the prefill's locked cart + total. */
+async function prefillSnapshotMismatch(rec: PrefillRecord, lines: LineDraft[]): Promise<string | null> {
+  const expected = new Map<string, number>();
+  for (const line of rec.lines) {
+    let variantId: number | null = null;
+    if (line.variant_public_id) {
+      const row = await env.DB.prepare('SELECT id FROM product_variants WHERE public_id = ?')
+        .bind(line.variant_public_id)
+        .first<{ id: number }>();
+      variantId = row?.id ?? -1; // unresolvable variant can never match
+    }
+    const key = `${line.product_id ?? ''}|${variantId ?? ''}`;
+    expected.set(key, (expected.get(key) ?? 0) + line.qty);
+  }
+  const actual = new Map<string, number>();
+  let totalCents = 0;
+  for (const line of lines) {
+    const key = `${line.product.id}|${line.variantId ?? ''}`;
+    actual.set(key, (actual.get(key) ?? 0) + line.qty);
+    totalCents += line.unitPriceCents * line.qty;
+  }
+  if (expected.size !== actual.size) return GATE_LOCK_MESSAGE;
+  for (const [key, qty] of expected) {
+    if (actual.get(key) !== qty) return GATE_LOCK_MESSAGE;
+  }
+  if (totalCents !== rec.totalCents) return GATE_LOCK_MESSAGE;
+  return null;
+}
 
 // GET /api/checkout — discovery: which payment methods this store offers, so an
 // agent can choose one to pass as { method } below.
@@ -202,6 +267,18 @@ export const POST: APIRoute = async ({ request, cookies, url, redirect }) => {
   }
 
   if (lines.length === 0) return redirect('/cart', 303);
+
+  // Checkout gate (cart checkouts only — express buy-now is a separate
+  // manual purchase): an open agent prefill needs the browser sign-in
+  // first, and the cart must still be exactly the locked one.
+  if (!productPublicId) {
+    const gate = await gateBlockFor(request, cookies.get('prefill')?.value, 'form');
+    if (gate.block) return gate.block;
+    if (gate.rec) {
+      const mismatch = await prefillSnapshotMismatch(gate.rec, lines);
+      if (mismatch) return redirect(`/cart?error=${encodeURIComponent(mismatch)}`, 303);
+    }
+  }
 
   // Don't oversell — check the variant's stock (or the product's), not the base.
   const short = lines.find((l) => l.availableStock < l.qty);
@@ -447,6 +524,11 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
   // Agent-prefilled cart: the prefill token rides the Cookie header here.
   const prefillCookieToken = /(?:^|;\s*)prefill=([^;]+)/.exec(request.headers.get('cookie') ?? '')?.[1];
 
+  // Checkout gate: an open agent prefill needs the buyer's browser
+  // sign-in before any payment session is created for it.
+  const gate = await gateBlockFor(request, prefillCookieToken, 'json');
+  if (gate.block) return gate.block;
+
   // Early reject on the declared size, then enforce the cap on the bytes we
   // actually read — a missing/lying content-length header can't slip past.
   const declaredLength = Number(request.headers.get('content-length') ?? 0);
@@ -623,6 +705,12 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
 
   const storeCurrency = cfg.currency;
   const subtotalCents = lines.reduce((s, l) => s + l.unitPriceCents * l.qty, 0);
+  // Checkout gate, second half: the requested cart must be exactly the
+  // agent's locked cart and price.
+  if (gate.rec) {
+    const mismatch = await prefillSnapshotMismatch(gate.rec, lines);
+    if (mismatch) return cjson({ error: mismatch }, 409);
+  }
   const shipCalc = createConfigRatesCalculator(effectiveShipping);
   const stripeFallbackCountry =
     stripeAllowedCountries(shipCalc.allowedCountries(), shipCalc.hasCatchAll())[0] ?? null;

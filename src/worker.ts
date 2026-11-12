@@ -1,15 +1,19 @@
 import { handle } from '@astrojs/cloudflare/handler';
 import { env } from 'cloudflare:workers';
 import { createOAuthServers, handleOAuthRequest, isOAuthPath } from './features/auth/oauth';
+import { handleGateRequest, isGatePath, tryGateCallback } from './features/auth/checkoutGate';
+import { handleMcpRequest } from '../mcp-server/index.js';
 import { sweepStaleNotifications } from './features/email/outbox';
 import { releaseExpiredReservations } from './features/orders/reservations';
 import { getSetting } from './features/settings/db';
 
-// OAuth 2.1 (v0.2.0): this Worker is both the authorization server and the
-// MCP resource server. The servers are pure config (no I/O), so they are
-// built per OAuth request from that request's env — local dev overrides the
-// issuer/resource via .dev.vars, which is why they can't be built once at
-// cold start.
+// OAuth 2.1 (v0.2.0): this Worker hosts the authorization server. The
+// servers are pure config (no I/O), so they are built per OAuth request
+// from that request's env — local dev overrides the issuer/resource via
+// .dev.vars, which is why they can't be built once at cold start.
+// Auth model (v0.3.0): /mcp is open (token-free, rate limited in the MCP
+// handler); the authorization server's sign-in now serves the browser
+// checkout gate (features/auth/checkoutGate.ts).
 
 /**
  * Worker entrypoint.
@@ -58,12 +62,25 @@ async function runScheduledSweeps(): Promise<void> {
 }
 
 export default {
-  // OAuth + MCP paths are routed before Astro: /mcp goes through the token
-  // check in the resource server, /authorize and the /oauth/* protocol
-  // endpoints go to the authorization server, and everything else is the
-  // storefront. /health, /inventory and /connect stay public Astro routes.
+  // Non-storefront paths are routed before Astro: /mcp goes straight to
+  // the (open) MCP handler; the checkout gate owns its sign-in pages and
+  // claims its own /oauth/callback returns before the authorization
+  // server sees them; /authorize and the /oauth/* protocol endpoints go
+  // to the authorization server; everything else is the storefront.
+  // /health, /inventory and /connect stay public Astro routes.
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext): Promise<Response> {
-    if (isOAuthPath(new URL(request.url).pathname)) {
+    const { pathname } = new URL(request.url);
+    if (pathname === '/mcp') {
+      return handleMcpRequest(request, env, undefined);
+    }
+    if (isGatePath(pathname)) {
+      return handleGateRequest(request, env);
+    }
+    if (pathname === '/oauth/callback') {
+      const gateResponse = await tryGateCallback(request, env);
+      if (gateResponse) return gateResponse;
+    }
+    if (isOAuthPath(pathname)) {
       const oauthResponse = await handleOAuthRequest(request, env, ctx, createOAuthServers(env));
       if (oauthResponse) return oauthResponse;
     }

@@ -160,7 +160,7 @@ Now I am ready to check out. I need two things:
 ```
 Cart prefilled — Stainless Tumbler (20 oz) × 1, Print Layout Design B, with the Final Print Artwork you approved. Price: $13.99, from the catalog.
 
-[Proceed to check out](https://p2gift.keeg.uk/checkout) — payment and delivery details are entered by you on the store page. Your card never passes through me.
+[Proceed to check out](https://p2gift.keeg.uk/checkout) — open it within about 15 minutes: you sign in in your browser, see the locked price and cart, and pay on the store page. Your card never passes through me.
 ```
 
 (user)

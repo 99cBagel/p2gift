@@ -1,13 +1,17 @@
-// OAuth 2.1 authorization for the p2gift MCP service (v0.2.0).
+// OAuth 2.1 authorization for p2gift (v0.2.0; re-scoped in v0.3.0).
 //
-// Same-Worker topology: this Worker is BOTH the authorization server (signs
-// users in, issues tokens) and the resource server (the /mcp endpoint).
-// This replaces the v0.1.9 per-customer API keys: no key to issue, paste, or
-// store — the user signs in once (Google first, GitHub second, SMS third)
-// and the agent's connector holds the token.
+// Same-Worker topology: this Worker hosts the authorization server (signs
+// users in, issues tokens). Through v0.2.x it also acted as the resource
+// server gating /mcp. In the v0.3.0 model /mcp is OPEN (token-free, rate
+// limited — see mcp-server/index.js), and this authorization server's
+// sign-in machinery (Google first, GitHub second, SMS third) instead
+// serves the browser checkout gate (src/features/auth/checkoutGate.ts):
+// the human signs in here, in the browser, right before paying. The
+// resource-server object is kept for its metadata route and for a
+// possible future re-gating; cleanup waits until the new flow verifies.
 //
 // Routing (owned by src/worker.ts, the Worker entry — "you own routing"):
-//   /mcp                                        -> resourceServer (token required)
+//   /mcp                                        -> MCP handler (open)
 //   /.well-known/oauth-protected-resource/mcp     -> resourceServer metadata
 //   /.well-known/oauth-authorization-server       -> authorizationServer metadata
 //   /oauth/token, /oauth/revoke, /oauth/register  -> authorizationServer
@@ -148,7 +152,6 @@ export function createOAuthServers(env: Cloudflare.Env): OAuthServers {
 /** Paths the OAuth layer owns. Anything else falls through to Astro. */
 export function isOAuthPath(pathname: string): boolean {
   return (
-    pathname === '/mcp' ||
     pathname === '/authorize' ||
     pathname === '/oauth/callback' ||
     pathname === '/oauth/sms-check' ||
@@ -180,10 +183,7 @@ export async function handleOAuthRequest(
   if (pathname === '/oauth/sms-check') {
     return handleSmsCheck(request, env);
   }
-  if (
-    pathname === '/mcp' ||
-    pathname.startsWith('/.well-known/oauth-protected-resource')
-  ) {
+  if (pathname.startsWith('/.well-known/oauth-protected-resource')) {
     return servers.resourceServer.fetch(request, env, ctx);
   }
   if (
@@ -203,11 +203,11 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 }
 
-function errorPage(message: string, status = 400): Response {
+export function errorPage(message: string, status = 400): Response {
   return new Response(
     `<!doctype html><meta charset="utf-8"><title>p2gift sign-in</title><h1>Sign-in didn't finish</h1><p>${escapeHtml(message)}</p><p>Go back to your assistant and start the connection again.</p>`,
     { status, headers: { 'content-type': 'text/html; charset=utf-8' } },
@@ -215,7 +215,7 @@ function errorPage(message: string, status = 400): Response {
 }
 
 /** SHA-256, base64url — the PKCE S256 code challenge for the upstream redirect. */
-async function s256(verifier: string): Promise<string> {
+export async function s256(verifier: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
   const bytes = new Uint8Array(digest);
   let bin = '';
@@ -335,7 +335,7 @@ async function handleAuthorizeGet(
   return new Response(authorizePage(details, consent.handle, env), { headers });
 }
 
-function upstreamAuthorizeUrl(
+export function upstreamAuthorizeUrl(
   provider: 'google' | 'github',
   clientId: string,
   state: string,
@@ -515,7 +515,7 @@ async function handleOAuthCallback(
   return new Response(null, { status: 302, headers });
 }
 
-async function exchangeGoogle(
+export async function exchangeGoogle(
   code: string | null,
   data: UpstreamData,
   env: Cloudflare.Env,
@@ -545,7 +545,7 @@ async function exchangeGoogle(
   return { userId: `google:${me.sub}`, email: me.email, name: me.name };
 }
 
-async function exchangeGitHub(
+export async function exchangeGitHub(
   code: string | null,
   data: UpstreamData,
   env: Cloudflare.Env,
@@ -610,7 +610,7 @@ async function verifySmsCode(
 // ---------------------------------------------------------------------------
 
 /** US-only: accept 10 digits, 11 digits starting with 1, or +1 form. */
-function normalizeUsPhone(raw: string): string | null {
+export function normalizeUsPhone(raw: string): string | null {
   const digits = raw.replace(/\D/g, '');
   let e164: string | null = null;
   if (digits.length === 10) e164 = `+1${digits}`;
@@ -621,7 +621,7 @@ function normalizeUsPhone(raw: string): string | null {
   return e164;
 }
 
-function twilioConfigured(env: Cloudflare.Env): boolean {
+export function twilioConfigured(env: Cloudflare.Env): boolean {
   return Boolean(
     env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_VERIFY_SERVICE_SID,
   );
@@ -637,7 +637,7 @@ function twilioVerifyUrl(env: Cloudflare.Env, path: string): string {
   return `https://verify.twilio.com/v2/Services/${encodeURIComponent(serviceSid)}${path}`;
 }
 
-async function twilioSendCode(env: Cloudflare.Env, phone: string): Promise<boolean> {
+export async function twilioSendCode(env: Cloudflare.Env, phone: string): Promise<boolean> {
   try {
     const res = await fetch(twilioVerifyUrl(env, '/Verifications'), {
       method: 'POST',
@@ -653,7 +653,7 @@ async function twilioSendCode(env: Cloudflare.Env, phone: string): Promise<boole
   }
 }
 
-async function twilioCheckCode(env: Cloudflare.Env, phone: string, code: string): Promise<boolean> {
+export async function twilioCheckCode(env: Cloudflare.Env, phone: string, code: string): Promise<boolean> {
   try {
     const res = await fetch(twilioVerifyUrl(env, '/VerificationCheck'), {
       method: 'POST',
@@ -677,7 +677,7 @@ async function kvCount(env: Cloudflare.Env, key: string): Promise<number> {
   return Number.isFinite(n) ? n : 0;
 }
 
-async function smsSendAllowed(env: Cloudflare.Env, phone: string, ip: string): Promise<boolean> {
+export async function smsSendAllowed(env: Cloudflare.Env, phone: string, ip: string): Promise<boolean> {
   const [byPhone, byIp] = await Promise.all([
     kvCount(env, `sms-send:phone:${phone}`),
     kvCount(env, `sms-send:ip:${ip}`),
@@ -685,7 +685,7 @@ async function smsSendAllowed(env: Cloudflare.Env, phone: string, ip: string): P
   return byPhone < SMS_SENDS_PER_PHONE_PER_HOUR && byIp < SMS_SENDS_PER_IP_PER_HOUR;
 }
 
-async function smsSendRecord(env: Cloudflare.Env, phone: string, ip: string): Promise<void> {
+export async function smsSendRecord(env: Cloudflare.Env, phone: string, ip: string): Promise<void> {
   const [byPhone, byIp] = await Promise.all([
     kvCount(env, `sms-send:phone:${phone}`),
     kvCount(env, `sms-send:ip:${ip}`),

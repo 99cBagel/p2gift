@@ -33,6 +33,7 @@ import {
   consumePrefill,
   applyPrefillArtwork,
 } from '../features/orders/prefill';
+import { parseGateIdentity, GATE_COOKIE } from '../features/auth/checkoutGate';
 import { purgeStockProductCache } from '../features/cache/purge';
 
 const cfg = getConfig();
@@ -193,9 +194,37 @@ const DEMO_ADDRESS = {
 // on the demo rail.
 const prefillToken = Astro.cookies.get('prefill')?.value;
 const agentPrefillRec = prefillToken ? await getOpenPrefill(env.DB, prefillToken) : null;
+// Checkout gate (v0.3.0): an agent-prefilled checkout needs the human
+// signed in in this browser before the payment step — on the first GET
+// and on the finalizing POST alike. Manual checkouts are untouched.
+const gateIdentity = agentPrefillRec
+  ? await parseGateIdentity(Astro.cookies.get(GATE_COOKIE)?.value, env)
+  : null;
+if (agentPrefillRec && !gateIdentity) {
+  return Astro.redirect(
+    `/checkout/signin?next=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`,
+    302,
+  );
+}
+// The locked summary data: exactly the lines, total, and destination
+// the agent prepared — shown read-only above the payment form.
+const lockedLines =
+  agentPrefillRec && gateIdentity
+    ? await Promise.all(
+        agentPrefillRec.lines.map(async (l) => {
+          const p = await getProductByPublicId(env.DB, l.product_public_id);
+          let variantLabel: string | null = null;
+          if (l.variant_public_id && p) {
+            const vs = await listVariants(env.DB, p.id);
+            variantLabel = vs.find((v) => v.public_id === l.variant_public_id)?.label ?? null;
+          }
+          return { name: p?.name ?? l.product_public_id, variantLabel, qty: l.qty };
+        }),
+      )
+    : null;
 const prefill = agentPrefillRec
   ? {
-      email: '',
+      email: gateIdentity?.email ?? '',
       name: agentPrefillRec.shipping.name,
       line1: agentPrefillRec.shipping.line1,
       line2: agentPrefillRec.shipping.line2 ?? '',
@@ -417,6 +446,30 @@ const hasErrors = errors.length > 0;
         Prepared by your agent — the delivery address is filled in from your order, and your
         approved Final Print Artwork is attached to the gift. Please add your email and payment to finish.
       </p>
+    )}
+    {agentPrefillRec && gateIdentity && lockedLines && (
+      <div class="mb-6 rounded-md border border-line bg-white/60 px-3 py-2 text-sm">
+        <p class="font-semibold">Price and cart locked</p>
+        <ul class="mt-1 list-inside list-disc">
+          {lockedLines.map((l) => (
+            <li>
+              {l.name}
+              {l.variantLabel ? ` — ${l.variantLabel}` : ''} × {l.qty}
+            </li>
+          ))}
+        </ul>
+        <p class="mt-1">
+          Items total {formatPrice(agentPrefillRec.totalCents, currency)} · Ship to{' '}
+          {agentPrefillRec.shipping.name}, {agentPrefillRec.shipping.line1},{' '}
+          {agentPrefillRec.shipping.city}, {agentPrefillRec.shipping.postal},{' '}
+          {agentPrefillRec.shipping.country}
+        </p>
+        <p class="mt-1 text-muted">
+          Signed in as {gateIdentity.email ?? gateIdentity.userId} ({gateIdentity.provider}).
+          Shipping is added at payment. If anything above looks wrong, ask your agent to
+          prepare the checkout again — the cart and price can't be changed here.
+        </p>
+      </div>
     )}
 
     {

@@ -11,9 +11,18 @@ import { GIFT_POOL } from "./gifts.js";
 
 const INVENTORY_KEYS = ["examples/inventory/inventory.json", "inventory/inventory.json"];
 
+// Catalog reads are the hot path of the open (token-free) MCP service,
+// so a successful R2 read is cached in-isolate for a minute: high
+// enough to absorb agent bursts, low enough that a catalog update is
+// visible almost immediately. Fallback-pool results are NOT cached —
+// a recovered bucket should be picked up on the very next call.
+const CACHE_TTL_MS = 60_000;
+let cache = { at: 0, value: null };
+
 export async function loadInventory(env) {
   const bucket = env?.P2GIFT_BUCKET;
   if (!bucket) return { source: "fallback-pool", items: GIFT_POOL };
+  if (cache.value && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
   try {
     let obj = null;
     for (const key of INVENTORY_KEYS) {
@@ -35,7 +44,9 @@ export async function loadInventory(env) {
         artwork_rules: i.artwork_rules ?? null,
       }));
     if (items.length === 0) return { source: "fallback-pool", items: GIFT_POOL };
-    return { source: "r2-inventory", items };
+    const value = { source: "r2-inventory", items };
+    cache = { at: Date.now(), value };
+    return value;
   } catch {
     return { source: "fallback-pool", items: GIFT_POOL };
   }

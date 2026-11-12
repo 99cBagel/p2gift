@@ -2,11 +2,17 @@
 // Implements the JSON-RPC surface MCP clients need: initialize,
 // notifications/initialized, tools/list, tools/call, resources/list,
 // resources/read, prompts/list, prompts/get, ping.
-// Auth (v0.2.0): OAuth 2.1. The /mcp endpoint is served by the merged
-// Worker behind an OAuth resource server (see src/features/auth/oauth.ts):
-// a request only reaches this module after its bearer token was validated,
-// and the signed-in user's identity arrives as `authProps`
-// ({ userId, email, name, provider }). /health and /inventory stay public.
+// Auth (v0.3.0): /mcp is OPEN — no token, no sign-in. The agent works
+// token-free; abuse control is rate limits (see rate-limit.js) plus the
+// browser sign-in gate at checkout: prepare_checkout's link leads to a
+// checkout where the HUMAN signs in (Google, GitHub, or a US phone code)
+// in the browser right before paying (see
+// src/features/auth/checkoutGate.ts). The OAuth authorization server
+// still lives in the Worker (src/features/auth/oauth.ts) — it now
+// serves that checkout gate instead of gating this endpoint.
+// `authProps` may still arrive when a caller is signed in; orders then
+// carry that identity, but it is never required. /health and /inventory
+// stay public.
 // R2 binding P2GIFT_BUCKET (bucket "p2gift") serves the learning
 // examples at examples/ — the Worker reads them from R2, it
 // does not embed the images in code.
@@ -15,7 +21,7 @@
 // Request and an env (with P2GIFT_BUCKET) and return a Response. The Astro
 // routes in src/pages/inventory.ts, src/pages/connect.ts and
 // src/pages/health.ts call them, and /mcp is routed by the Worker entry
-// (src/worker.ts) through the OAuth resource server, so the MCP service has
+// (src/worker.ts) straight to handleMcpRequest, so the MCP service has
 // exactly one implementation. The default export is the standalone Worker
 // entry (the pre-merge shape), kept for local use: there the Connect Guide
 // is the landing page at / and /connect redirects to it. In the merged
@@ -25,8 +31,14 @@ import { suggestGifts } from "./gifts.js";
 import { loadInventory } from "./inventory.js";
 import { STEPS, startOrder, nextStep, confirmStep } from "./workflow.js";
 import { prepareCheckout } from "./prepare-checkout.js";
+import {
+  rateLimitHit,
+  clientIp,
+  MCP_GENERAL_LIMIT_PER_HOUR,
+  MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR,
+} from "./rate-limit.js";
 
-const SERVER = { name: "p2gift", version: "0.2.0" };
+const SERVER = { name: "p2gift", version: "0.3.0" };
 
 
 // Worked examples for few-shot (N-shot) learning, stored in R2 under
@@ -172,7 +184,7 @@ const TOOLS = [
   },
   {
     name: "prepare_checkout",
-    description: "Prepare the store checkout for a completed workflow session (step done, checkout draft present). Runs the shape checks: cart contents against the live catalog (item, variant, quantity, stock, shipping address, and the quoted price must equal the live catalog total), then the 2-layer Final Print Artwork check (Layer 1: PNG only, under 15 MB, transparent background, single color; Layer 2: the gift item's own print/engraving rules plus an AI negative check — text as printed vs the confirmed Pitch Text, the picked layout, no logo). On any failure it returns the reasons so the artwork or draft can be fixed and resubmitted. On success it stores the artwork with the order-to-be, prefills the cart, and returns checkout_url — the user opens it and pays on the store page; the card never passes through the agent.",
+    description: "Prepare the store checkout for a completed workflow session (step done, checkout draft present). Runs the shape checks: cart contents against the live catalog (item, variant, quantity, stock, shipping address, and the quoted price must equal the live catalog total), then the 2-layer Final Print Artwork check (Layer 1: PNG only, under 15 MB, transparent background, single color; Layer 2: the gift item's own print/engraving rules plus an AI negative check — text as printed vs the confirmed Pitch Text, the picked layout, no logo). On any failure it returns the reasons so the artwork or draft can be fixed and resubmitted. On success it stores the artwork with the order-to-be, prefills the cart, and returns checkout_url — a signed, single-use link that expires in about 15 minutes. The user opens it, signs in in the browser (Google, GitHub, or a US phone code), sees the locked price and cart, and pays on the store page; the card never passes through the agent.",
     inputSchema: {
       type: "object",
       properties: {
@@ -216,7 +228,7 @@ function textResult(obj) {
 
 // GET /health — public service JSON (no key needed).
 export function handleHealthRequest() {
-  return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "oauth", example: "p2gift://examples/default.md" }), {
+  return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "open", checkout_gate: "oauth", example: "p2gift://examples/default.md" }), {
     headers: { "content-type": "application/json" },
   });
 }
@@ -240,19 +252,19 @@ export async function handleConnectRequest(env) {
 }
 
 // POST /mcp — JSON-RPC over Streamable HTTP (stateless: one request, one reply).
-// Auth is enforced BEFORE this handler by the OAuth resource server in the
-// merged Worker (src/features/auth/oauth.ts): a request only arrives here
-// with a validated token, and `authProps` is the signed-in user
-// ({ userId, email, name, provider }). The check below is defense in depth —
-// it fails closed if this handler is ever reached without a validated
-// identity (e.g. the legacy standalone entry, which has no resource server).
+// OPEN endpoint (v0.3.0): no token is required or checked. Abuse control
+// is the rate limiter below (per IP generally; per IP + per session for
+// prepare_checkout), and everything costly or irreversible sits behind
+// the browser sign-in gate at checkout. `authProps` is optional — when
+// a caller happens to be signed in, orders carry that identity.
 export async function handleMcpRequest(request, env, authProps) {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
-  if (!authProps?.userId) {
+  const ip = clientIp(request);
+  if (!(await rateLimitHit(env, "mcp", ip, MCP_GENERAL_LIMIT_PER_HOUR))) {
     return Response.json(
-      error(null, -32001, "Unauthorized: this MCP endpoint needs a validated OAuth sign-in. Connect with your login, not an API key."),
-      { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="p2gift"' } }
+      error(null, -32000, "Rate limit reached for this network. Wait a while and try again — or use Live Connect (draft an email to hello@keeg.uk)."),
+      { status: 429 },
     );
   }
 
@@ -328,17 +340,21 @@ export async function handleMcpRequest(request, env, authProps) {
       const inv = await loadInventory(env);
       payload = result(id, textResult({ service: "PPT-to-Gift Service Worker", endpoint: "https://p2gift.keeg.uk/mcp", inventory_source: inv.source, gift_items: inv.items, catalog_url: CATALOG_URL, how_to_pick: HOW_TO_PICK }));
     } else if (name === "start_order") {
-      // The signed-in user travels with the order: the session records who
-      // placed it, so the checkout draft and the store order carry that
-      // identity (the human still pays in the browser — the token can't pay).
+      // Identity is optional in the open model: when the caller is
+      // signed in it travels with the order; when not, the session is
+      // anonymous and the verified identity is captured later, at the
+      // browser checkout gate (the human still pays in the browser —
+      // nothing here can pay).
       const session = startOrder({
         pitchProposal: args.pitchProposal,
-        customer: {
-          userId: authProps.userId,
-          email: authProps.email ?? null,
-          name: authProps.name ?? null,
-          provider: authProps.provider,
-        },
+        customer: authProps?.userId
+          ? {
+              userId: authProps.userId,
+              email: authProps.email ?? null,
+              name: authProps.name ?? null,
+              provider: authProps.provider,
+            }
+          : null,
       });
       payload = result(id, textResult({ session, next_step: nextStep(session), steps: STEPS }));
     } else if (name === "get_next_step") {
@@ -354,6 +370,13 @@ export async function handleMcpRequest(request, env, authProps) {
     } else if (name === "prepare_checkout") {
       if (!args.session || !args.artwork_png_base64 || !args.shipping) {
         payload = error(id, -32602, "session, artwork_png_base64 and shipping are required");
+      } else if (
+        !(await rateLimitHit(env, "prepare-checkout-ip", ip, MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR)) ||
+        !(await rateLimitHit(env, "prepare-checkout-session", args.session.session_id ?? "", MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR))
+      ) {
+        // The costly call (Workers AI check + R2/D1 writes) gets the
+        // strict bucket: per IP and per workflow session.
+        payload = error(id, -32000, "Too many checkout preparations in the last hour. Wait, or use Live Connect (draft an email to hello@keeg.uk).");
       } else {
         const out = await prepareCheckout(env, authProps, args);
         if (out.error && out.error !== "artwork_check_unavailable") payload = error(id, -32602, out.error);
@@ -392,9 +415,9 @@ export async function handleMcpRequest(request, env, authProps) {
 // runs on its own: the Connect Guide is the landing page at / here, and
 // /connect redirects to it. In the merged Worker the storefront owns /
 // and the guide is served at /connect by the Astro route instead.
-// NOTE (v0.2.0): /mcp here has no OAuth resource server in front of it, so
-// handleMcpRequest fails closed (401) without a validated identity. The
-// merged Worker (src/worker.ts) is the deployment — this entry is not.
+// NOTE (v0.3.0): /mcp is open in both shapes; the standalone entry lacks
+// the D1/FILES bindings and the checkout gate, so prepare_checkout can
+// only fully run in the merged Worker (src/worker.ts) — the deployment.
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);

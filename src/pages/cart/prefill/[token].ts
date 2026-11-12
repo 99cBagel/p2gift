@@ -5,8 +5,8 @@
  * remembers the prefill in a cookie so /checkout can pre-fill the
  * delivery address and attach the approved Final Print Artwork to the
  * order, and lands on the store's checkout entry for its configured
- * payment rail. Payment happens there, by the human, as with any
- * guest checkout.
+ * payment rail. There the checkout gate (v0.3.0) asks the human to
+ * sign in in the browser before payment happens.
  */
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
@@ -20,7 +20,7 @@ const EXPIRED_HTML = `<!doctype html>
 <style>body{font-family:system-ui,sans-serif;background:#f6f4ef;color:#171a1f;display:grid;place-items:center;min-height:100vh;margin:0}main{max-width:26rem;padding:2rem;text-align:center}a{color:#0f766e}</style>
 </head><body><main>
 <h1>This checkout link has expired</h1>
-<p>Agent-prefilled checkout links stay open for 7 days and close once used. Ask your agent to prepare the checkout again, or browse the store and check out as usual.</p>
+<p>Agent-prefilled checkout links stay open for about 15 minutes and close once used. Ask your agent to prepare the checkout again, or browse the store and check out as usual.</p>
 <p><a href="/">Back to the store</a></p>
 </main></body></html>`;
 
@@ -63,7 +63,8 @@ export const GET: APIRoute = async ({ params, cookies, redirect, url }) => {
     httpOnly: true,
     sameSite: 'lax',
     secure,
-    maxAge: 60 * 60 * 24 * 7,
+    // Matches the prefill's own ~15-minute lifetime (prepare_checkout).
+    maxAge: 60 * 15,
   });
   // Land where this store actually takes payment: the in-app checkout
   // page serves the demo/lightning/opennode rails and needs its rail

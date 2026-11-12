@@ -9,6 +9,8 @@ import { stripeDestination } from '../features/shipping/destination';
 import ProductImage from '../features/products/ProductImage.astro';
 import { enabledMethods, isMethodAvailable } from '../features/payments';
 import { catalogPath } from '../features/settings/home';
+import { getOpenPrefill } from '../features/orders/prefill';
+import { parseGateIdentity, GATE_COOKIE } from '../features/auth/checkoutGate';
 
 // Cart switched off in Settings → browse-only catalog, no cart page.
 if (!(Astro.locals.settings?.cartEnabled ?? true)) return Astro.redirect('/', 302);
@@ -33,6 +35,18 @@ const METHOD: Record<string, { label: string; hint: string; setupHint: string }>
 const cart = readCart(Astro.cookies);
 const { lines, subtotalCents } = await resolveCart(env.DB, cart);
 const error = Astro.url.searchParams.get('error');
+
+// Checkout gate (v0.3.0): a cart that came from an agent's prefill link
+// needs the buyer's browser sign-in before payment. Point that out here
+// — the hard enforcement lives on /checkout and /api/checkout.
+const prefillGateRec = await (async () => {
+  const token = Astro.cookies.get('prefill')?.value;
+  return token ? getOpenPrefill(env.DB, token) : null;
+})();
+const gateIdentity = prefillGateRec
+  ? await parseGateIdentity(Astro.cookies.get(GATE_COOKIE)?.value, env)
+  : null;
+const gatePending = Boolean(prefillGateRec && !gateIdentity);
 
 // Destination pre-selector for Stripe's hosted checkout: Stripe shows a static
 // rate list set before it knows the address, so let the shopper pick the country
@@ -161,7 +175,20 @@ const shopHref = catalogPath(Astro.locals.settings?.homePage);
               <span class="text-lg tabular-nums">{formatPrice(subtotalCents)}</span>
             </div>
 
-            {methods.length === 0 ? (
+            {gatePending ? (
+              <div class="mt-4 rounded-lg border border-line px-5 py-4 text-center text-sm">
+                <p>
+                  This cart was prepared by your agent. Sign in to confirm it's you,
+                  then you can pay.
+                </p>
+                <a
+                  href="/checkout/signin?next=/cart"
+                  class="mt-3 inline-block rounded-md bg-teal-700 px-4 py-2 font-semibold text-white"
+                >
+                  Sign in to check out
+                </a>
+              </div>
+            ) : methods.length === 0 ? (
               <p class="mt-4 rounded-lg border border-dashed border-line px-5 py-4 text-center text-sm text-muted">
                 Checkout is currently unavailable.
               </p>

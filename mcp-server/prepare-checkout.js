@@ -20,7 +20,12 @@ import { loadInventory } from "./inventory.js";
 import { checkArtworkL1, checkArtworkL2 } from "./artwork-check.js";
 
 const SITE = "https://p2gift.keeg.uk";
-const PREFILL_TTL_DAYS = 7;
+// The checkout link is the gated human step of the v0.3.0 model: signed
+// by its unguessable token, single-use (consumed when the order is
+// created), and short-lived — about 15 minutes, long enough for the
+// human to open it, sign in in the browser, and pay. An expired link is
+// simply re-issued by calling prepare_checkout again.
+const PREFILL_TTL_MS = 15 * 60 * 1000;
 
 function newToken() {
   const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -175,7 +180,7 @@ export async function prepareCheckout(env, authProps, input = {}) {
   await env.FILES.put(artworkKey, bytes, { httpMetadata: { contentType: "image/png" } });
 
   const lines = [{ product_public_id: product.public_id, variant_public_id: variant?.public_id ?? null, qty, product_id: product.id }];
-  const expiresAt = new Date(Date.now() + PREFILL_TTL_DAYS * 86400000).toISOString().replace("T", " ").slice(0, 19);
+  const expiresAt = new Date(Date.now() + PREFILL_TTL_MS).toISOString().replace("T", " ").slice(0, 19);
   await env.DB.prepare(
     `INSERT INTO prefill_carts (token, lines, artwork_key, artwork_name, artwork_size, shipping, total_cents, currency, agent_user_id, session_id, status, expires_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, 'open', ?)`,
@@ -207,6 +212,6 @@ export async function prepareCheckout(env, authProps, input = {}) {
     },
     artwork: { ...l1.facts, ai_transcription: l2.transcription },
     instruction:
-      "Give the user the checkout_url. They open it, the cart is prefilled with the gift item, and they enter their email and payment on the store page — the card never passes through the agent. The approved Final Print Artwork rides the order.",
+      "Give the user the checkout_url now — it expires in about 15 minutes. They open it, the cart is prefilled with the gift item, they sign in in the browser (Google, GitHub, or a US phone code), see the locked price and cart, and pay on the store page — the card never passes through the agent. The approved Final Print Artwork rides the order. If the link expires, call prepare_checkout again to re-issue it.",
   };
 }
