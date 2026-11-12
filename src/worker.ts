@@ -2,6 +2,11 @@ import { handle } from '@astrojs/cloudflare/handler';
 import { env } from 'cloudflare:workers';
 import { createOAuthServers, handleOAuthRequest, isOAuthPath } from './features/auth/oauth';
 import { handleGateRequest, isGatePath, tryGateCallback } from './features/auth/checkoutGate';
+import {
+  handleAdminGoogleStart,
+  isAdminGooglePath,
+  tryAdminGoogleCallback,
+} from './features/auth/adminGoogle';
 import { handleMcpRequest } from '../mcp-server/index.js';
 import { sweepStaleNotifications } from './features/email/outbox';
 import { releaseExpiredReservations } from './features/orders/reservations';
@@ -65,7 +70,9 @@ export default {
   // Non-storefront paths are routed before Astro: /mcp goes straight to
   // the (open) MCP handler; the checkout gate owns its sign-in pages and
   // claims its own /oauth/callback returns before the authorization
-  // server sees them; /authorize and the /oauth/* protocol endpoints go
+  // server sees them; the admin Google sign-in (features/auth/
+  // adminGoogle.ts) starts at /admin/google and claims its returns the
+  // same way; /authorize and the /oauth/* protocol endpoints go
   // to the authorization server; everything else is the storefront.
   // /health, /inventory and /connect stay public Astro routes.
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext): Promise<Response> {
@@ -76,7 +83,12 @@ export default {
     if (isGatePath(pathname)) {
       return handleGateRequest(request, env);
     }
+    if (isAdminGooglePath(pathname)) {
+      return handleAdminGoogleStart(request, env);
+    }
     if (pathname === '/oauth/callback') {
+      const adminResponse = await tryAdminGoogleCallback(request, env);
+      if (adminResponse) return adminResponse;
       const gateResponse = await tryGateCallback(request, env);
       if (gateResponse) return gateResponse;
     }

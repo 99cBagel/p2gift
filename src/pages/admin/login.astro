@@ -99,5 +99,22 @@ if (Astro.request.method === 'POST') {
         Sign in
       </button>
     </form>
+
+    {
+      env.GOOGLE_CLIENT_ID && (
+        <div class="mt-6">
+          <p class="mb-3 text-center text-sm text-gray-500">or</p>
+          <a
+            href="/admin/google"
+            class="block w-full rounded-md border border-gray-300 px-4 py-2.5 text-center font-medium hover:bg-gray-50"
+          >
+            Continue with Google
+          </a>
+          <p class="mt-2 text-center text-xs text-gray-500">
+            Only Google accounts on the store's admin list get in.
+          </p>
+        </div>
+      )
+    }
   </div>
 </Layout>

@@ -34,6 +34,7 @@ export type SettingKey =
   | 'ship_from' // JSON ShipFrom — the store's return address for label purchase (read at label time, not in locals)
   | 'parcel_default' // JSON {length,width,height} — remembered box dimensions for label purchase
   | 'admin_password_hash' // PBKDF2 hash of the admin password (set at setup). NOT in StoreSettings — read only by the auth layer, never loaded into locals.
+  | 'admin_google_emails' // CSV of Google accounts allowed into /admin via Google sign-in. NOT in StoreSettings — read only by the auth layer; absent/empty = Google admin sign-in off.
   // Integrations configured in the admin dashboard (non-secret halves; the keys
   // live encrypted in the vault — see features/secrets/store.ts).
   | 'email_enabled' // '0' = order/login email off; absent = on
