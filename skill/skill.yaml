@@ -1,0 +1,5 @@
+name: "p2gift"
+title: "PPT-to-Gift orders with p2gift"
+description: "Run a pitch-to-gift order through the p2gift MCP service's lock-stage wizard, from pitch or PPT to a locked gift, layout and print artwork, a browser checkout, and the store's order confirmation."
+category: "Shopping"
+include_in_prompt: true
