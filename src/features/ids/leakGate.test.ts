@@ -23,6 +23,9 @@ const product: Product = {
   variant_label: 'Size',
   weight_grams: null,
   requires_shipping: 1,
+  lead_time_days: null,
+  layout_options: null,
+  artwork_specs: null,
   related_ids: null,
   created_at: '2026-06-18 00:00:00',
 };

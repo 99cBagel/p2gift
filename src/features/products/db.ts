@@ -22,6 +22,17 @@ export interface Product {
   /** 0 = digital/no fulfillment: excluded from shipment weight and from the
    *  missing-weight check, so a mixed cart can still check out. */
   requires_shipping: number;
+  /** Wizard: days after order confirmation (the item's Lead_Time);
+   *  expected delivery = order date + this. NULL = not set yet. */
+  lead_time_days: number | null;
+  /** Wizard: the Print Layout Designs offered for this item (display
+   *  text; the A/B/C letters are the stable keys). NULL = generic
+   *  default (features/products/wizardDefaults). */
+  layout_options: string | null;
+  /** Wizard: the print specs handed to the Assistant at the layout
+   *  lock (ARTWORK_SPECS). Advisory text — no automated guardrails
+   *  run on the uploaded artwork. NULL = generic default. */
+  artwork_specs: string | null;
   file_key: string | null;
   file_name: string | null;
   file_mime: string | null;
@@ -42,6 +53,9 @@ export interface ProductFields {
   active: number;
   weight_grams: number | null;
   requires_shipping: number;
+  lead_time_days: number | null;
+  layout_options: string | null;
+  artwork_specs: string | null;
 }
 
 /** Full input for create/update — form fields plus resolved image key + slug. */
@@ -398,11 +412,11 @@ export async function createProduct(db: D1Database, p: ProductInput): Promise<nu
   return withPublicId('product', async (publicId) => {
     const row = await db
       .prepare(
-        `INSERT INTO products (name, slug, description, price_cents, currency, image_key, stock, active, weight_grams, requires_shipping, public_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO products (name, slug, description, price_cents, currency, image_key, stock, active, weight_grams, requires_shipping, lead_time_days, layout_options, artwork_specs, public_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id`,
       )
-      .bind(p.name, p.slug, p.description, p.price_cents, p.currency, p.image_key, p.stock, p.active, p.weight_grams, p.requires_shipping, publicId)
+      .bind(p.name, p.slug, p.description, p.price_cents, p.currency, p.image_key, p.stock, p.active, p.weight_grams, p.requires_shipping, p.lead_time_days, p.layout_options, p.artwork_specs, publicId)
       .first<{ id: number }>();
     return row!.id;
   });
@@ -466,10 +480,10 @@ export async function updateProduct(db: D1Database, id: number, p: ProductInput)
     .prepare(
       `UPDATE products
          SET name = ?, slug = ?, description = ?, price_cents = ?, currency = ?, image_key = ?, stock = ?, active = ?,
-             weight_grams = ?, requires_shipping = ?
+             weight_grams = ?, requires_shipping = ?, lead_time_days = ?, layout_options = ?, artwork_specs = ?
        WHERE id = ?`,
     )
-    .bind(p.name, p.slug, p.description, p.price_cents, p.currency, p.image_key, p.stock, p.active, p.weight_grams, p.requires_shipping, id)
+    .bind(p.name, p.slug, p.description, p.price_cents, p.currency, p.image_key, p.stock, p.active, p.weight_grams, p.requires_shipping, p.lead_time_days, p.layout_options, p.artwork_specs, id)
     .run();
 }
 

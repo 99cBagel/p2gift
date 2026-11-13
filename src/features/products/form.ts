@@ -61,8 +61,27 @@ export function parseProductForm(
     };
   }
 
+  // Wizard fields. Lead Time is a whole number of days after order
+  // confirmation (blank = not set). The two texts are display/spec
+  // text for the wizard; blank stores NULL, which readers resolve
+  // to the generic defaults in wizardDefaults.ts.
+  const leadRaw = String(form.get('lead_time_days') ?? '').trim();
+  let lead_time_days: number | null = null;
+  if (leadRaw !== '') {
+    const n = Number(leadRaw);
+    if (!Number.isInteger(n) || n < 0) {
+      return { error: 'Lead Time must be a non-negative whole number of days.' };
+    }
+    lead_time_days = n;
+  }
+  const layout_options = String(form.get('layout_options') ?? '').trim() || null;
+  const artwork_specs = String(form.get('artwork_specs') ?? '').trim() || null;
+
   return {
-    data: { name, description, price_cents, currency, stock, active, weight_grams, requires_shipping },
+    data: {
+      name, description, price_cents, currency, stock, active, weight_grams, requires_shipping,
+      lead_time_days, layout_options, artwork_specs,
+    },
   };
 }
 

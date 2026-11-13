@@ -4,6 +4,7 @@ import type { CategoryOption } from '../categories/db';
 import { getConfig, toMajorUnits, currencyDecimals } from '../../config';
 import { formatWeightValue, type WeightUnit } from '../shipping/weight';
 import { attachmentActive } from '../digitalDelivery/rollout.ts';
+import { DEFAULT_LAYOUT_OPTIONS, DEFAULT_ARTWORK_SPECS } from './wizardDefaults';
 
 interface Props {
   action: string;
@@ -160,6 +161,44 @@ const inputClass =
         Remove attachment from future purchases
       </label>
     )}
+  </fieldset>
+
+  <fieldset class="rounded-md border border-line p-4">
+    <legend class="px-1 text-sm font-medium">Gift wizard (p2gift)</legend>
+    <div>
+      <label class="block text-sm font-medium" for="lead_time_days">Lead Time (days)</label>
+      <input
+        id="lead_time_days"
+        name="lead_time_days"
+        type="number"
+        step="1"
+        min="0"
+        value={product?.lead_time_days ?? ''}
+        class={inputClass}
+      />
+      <p class="mt-1 text-xs text-muted">
+        Days after order confirmation. The wizard's expected delivery date is the order date plus
+        this. Blank = not set yet — the wizard cannot quote a delivery date without it.
+      </p>
+    </div>
+    <div class="mt-3">
+      <label class="block text-sm font-medium" for="layout_options">Layout Options</label>
+      <textarea id="layout_options" name="layout_options" rows="3" class={inputClass}
+        >{product?.layout_options ?? DEFAULT_LAYOUT_OPTIONS}</textarea>
+      <p class="mt-1 text-xs text-muted">
+        The Print Layout Designs offered for this item, shown to the customer in the wizard. The
+        A/B/C letters are stable keys — do not rename or reorder them.
+      </p>
+    </div>
+    <div class="mt-3">
+      <label class="block text-sm font-medium" for="artwork_specs">Artwork Specs</label>
+      <textarea id="artwork_specs" name="artwork_specs" rows="6" class={inputClass}
+        >{product?.artwork_specs ?? DEFAULT_ARTWORK_SPECS}</textarea>
+      <p class="mt-1 text-xs text-muted">
+        Handed to the Assistant at the layout lock (ARTWORK_SPECS). Advisory only — no automated
+        check runs on the uploaded artwork; issues are handled with the customer manually.
+      </p>
+    </div>
   </fieldset>
 
   {

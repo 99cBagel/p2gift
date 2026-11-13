@@ -435,6 +435,11 @@ export class StoreMcp extends McpAgent<Env, Record<string, never>, SessionProps>
           // until a weight-priced rate exists.
           weight_grams: null,
           requires_shipping: 1,
+          // Wizard fields are set in Admin; a new product starts unset
+          // (NULL layout/specs resolve to the generic defaults).
+          lead_time_days: null,
+          layout_options: null,
+          artwork_specs: null,
         };
         const rowId = await createProduct(db, input);
         const created = await getProduct(db, rowId);
@@ -475,6 +480,9 @@ export class StoreMcp extends McpAgent<Env, Record<string, never>, SessionProps>
           // column, so omitting these would silently clear them.
           weight_grams: cur.weight_grams,
           requires_shipping: cur.requires_shipping,
+          lead_time_days: cur.lead_time_days,
+          layout_options: cur.layout_options,
+          artwork_specs: cur.artwork_specs,
         };
         await updateProduct(db, cur.id, input);
         return result({ id: requirePublicId(cur.public_id, cur.id, 'product'), slug: cur.slug });
