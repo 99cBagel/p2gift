@@ -7,7 +7,20 @@
 // is read as a fallback while old copies remain in the bucket.
 // If R2 is missing, unreadable, or empty, fall back to the hardcoded
 // GIFT_POOL and say so (source: "fallback-pool") — never show nothing.
-import { GIFT_POOL } from "./gifts.js";
+
+// Gift item pool — the FALLBACK pool, the original 6 items. Used only
+// when the live R2 inventory (examples/inventory/inventory.json) is
+// missing or empty; at run time the items come from R2, never from
+// this list directly. No prices here: pricing is confirmed per order,
+// never invented.
+export const GIFT_POOL = [
+  { id: "tote-bag", name: "Tote Bag", surface: "full", note: "Printed pitch or presentation-inspired artwork on a reusable tote." },
+  { id: "leather-notebook-set", name: "Leather Notebook Set", surface: "full", note: "Embossed or printed Pitch Text on a leather notebook set." },
+  { id: "stainless-cups-5pack-12oz", name: "5-Pack Stainless Cups (12 oz)", surface: "short", note: "Food-grade 304 stainless steel, poly-coated finish, engraved pitch." },
+  { id: "stainless-tumbler-20oz", name: "Stainless Tumbler (20 oz)", surface: "condensed", note: "Engraved or printed pitch on a wrap surface, best for a condensed pitch." },
+  { id: "custom-pint-glass-16oz", name: "Custom Pint Glass (16 oz)", surface: "full", note: "Printed full-colour wraparound pitch around the glass." },
+  { id: "walnut-peanut-plate", name: "Walnut Peanut Plate", surface: "short", note: "Engraved short phrase, name, or monogram on walnut wood; best for a short pitch message." },
+];
 
 const INVENTORY_KEYS = ["examples/inventory/inventory.json", "inventory/inventory.json"];
 

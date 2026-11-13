@@ -25,6 +25,7 @@ export const PUBLIC_ID_PREFIXES = {
   orderItem: 'itm',
   inventoryException: 'iexc',
   orderItemFile: 'file',
+  wizardSession: 'ses',
 } as const;
 
 export type PublicIdKind = keyof typeof PUBLIC_ID_PREFIXES;

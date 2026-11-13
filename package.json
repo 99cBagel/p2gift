@@ -36,7 +36,7 @@
     "scaffold:check": "if [ -d create-minshop ]; then npm test --prefix create-minshop && npm pack ./create-minshop --dry-run; else echo \"scaffold:check skipped: no create-minshop in a generated store\"; fi",
     "theme:sync": "node scripts/theme-sync.mjs",
     "db:seed:storefront-states": "bash scripts/seed-storefront-states.sh",
-    "check:mcp": "node --check mcp-server/index.js && node --check mcp-server/gifts.js && node --check mcp-server/workflow.js && node --check mcp-server/inventory.js && node --check mcp-server/png.js && node --check mcp-server/artwork-check.js && node --check mcp-server/prepare-checkout.js"
+    "check:mcp": "node --check mcp-server/index.js && node --check mcp-server/inventory.js && node --check mcp-server/session.js && node --check mcp-server/checkout.js && node --check mcp-server/rate-limit.js"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.7",
