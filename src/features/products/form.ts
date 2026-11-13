@@ -76,11 +76,20 @@ export function parseProductForm(
   }
   const layout_options = String(form.get('layout_options') ?? '').trim() || null;
   const artwork_specs = String(form.get('artwork_specs') ?? '').trim() || null;
+  const surfaceRaw = String(form.get('print_surface') ?? '').trim().toLowerCase();
+  let print_surface: string | null = null;
+  if (surfaceRaw !== '') {
+    if (!['full', 'condensed', 'short'].includes(surfaceRaw)) {
+      return { error: 'Print Surface must be full, condensed, or short.' };
+    }
+    print_surface = surfaceRaw;
+  }
+  const treatment = String(form.get('treatment') ?? '').trim() || null;
 
   return {
     data: {
       name, description, price_cents, currency, stock, active, weight_grams, requires_shipping,
-      lead_time_days, layout_options, artwork_specs,
+      lead_time_days, layout_options, artwork_specs, print_surface, treatment,
     },
   };
 }

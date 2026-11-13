@@ -86,8 +86,6 @@ const EXAMPLE_FILES = [
   { key: "examples/assets/layout-c.webp", mimeType: "image/webp", name: "Example asset — Layout C", description: "Layout C: 2 lines, em dash kept." },
   { key: "examples/assets/layout-3choices.webp", mimeType: "image/webp", name: "Example asset — Layouts A, B, C in one image", description: "The three print layout designs side by side in one strip — A left, B middle, C right; the combined image shown in the default workflow example." },
   { key: "examples/assets/final_print_artwork.png", mimeType: "image/png", name: "Example asset — Final Print Artwork, Layout B", description: "Final Print Artwork, Layout B, white text on black." },
-  { key: "examples/print-layout-example.md", mimeType: "text/markdown", name: "Print Layout Design examples", description: "The three Print Layout Designs (A, B, C) with example images — supporting reference for the layout stage." },
-  { key: "examples/inventory/inventory.json", mimeType: "application/json", name: "Live gift item inventory", description: "The available gift items, aligned with the store Product Page — the pitch rail fits against these surfaces and select_gift maps the page's pick numbers to these items." },
 ];
 const EXAMPLE_RESOURCES = EXAMPLE_FILES.map((f) => ({
   uri: `p2gift://${f.key}`,
@@ -378,7 +376,7 @@ export async function handleMcpRequest(request, env, authProps) {
         flow: "lock-stage wizard",
         stages: STAGES,
         inventory_source: inv.source,
-        gift_items: inv.items.map((i) => ({ id: i.id, name: i.name, surface: i.surface, treatment: i.treatment ?? null })),
+        gift_items: inv.items.map((i) => ({ id: i.id, name: i.name, surface: i.surface, treatment: i.treatment ?? null, lead_time_days: i.lead_time_days ?? null })),
         note: "The product page URL is issued by approve_pitch at the pitch lock — it is not listed here, and the agent never presents its own gift list or catalog link.",
       }));
     } else if (name === "start_session") {

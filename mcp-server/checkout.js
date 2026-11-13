@@ -226,6 +226,7 @@ function orderView(order) {
     payment_method: paid ? "Card" : null,
     stripe_session_ref: order.stripe_session_id ?? null,
     expected_delivery_date: expectedDelivery({ ...order, paid_at: paid ? order.created_at : null }),
+    lead_time_days: order.lead_time_days ?? null,
     fulfillment: fulfillmentLadder(order),
     order_page_url: order.access_token ? `${SITE}/order/${order.access_token}` : null,
     order_token: order.access_token ?? null,
@@ -275,6 +276,7 @@ export async function getOrderStatus(env, { sessionId }) {
         delivery: {
           headline: `Here is expected delivery date ${view.expected_delivery_date ?? "(the gift item has no Lead_Time set yet)"}`,
           expected_delivery_date: view.expected_delivery_date,
+          lead_time_days: view.lead_time_days,
           basis: "order date + the gift item's Lead_Time; the carrier's date replaces it once the order ships",
         },
         lookup: {

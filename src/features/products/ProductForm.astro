@@ -199,6 +199,31 @@ const inputClass =
         check runs on the uploaded artwork; issues are handled with the customer manually.
       </p>
     </div>
+    <div class="mt-3">
+      <label class="block text-sm font-medium" for="print_surface">Print Surface</label>
+      <select id="print_surface" name="print_surface" class={inputClass}>
+        <option value="" selected={product?.print_surface == null}>— not set —</option>
+        <option value="full" selected={product?.print_surface === 'full'}>Full pitch</option>
+        <option value="condensed" selected={product?.print_surface === 'condensed'}>Condensed pitch</option>
+        <option value="short" selected={product?.print_surface === 'short'}>Short phrase</option>
+      </select>
+      <p class="mt-1 text-xs text-muted">
+        What pitch form this item's print surface can bear. The wizard's pitch rail fits against
+        it; until set, the item fits nothing.
+      </p>
+    </div>
+    <div class="mt-3">
+      <label class="block text-sm font-medium" for="treatment">Treatment</label>
+      <input
+        id="treatment"
+        name="treatment"
+        type="text"
+        class={inputClass}
+        value={product?.treatment ?? ''}
+        placeholder="e.g. Pitch Text engraved on the cups"
+      />
+      <p class="mt-1 text-xs text-muted">How the pitch is applied to this item — fed to the agent by the MCP service.</p>
+    </div>
   </fieldset>
 
   {

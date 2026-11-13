@@ -440,6 +440,8 @@ export class StoreMcp extends McpAgent<Env, Record<string, never>, SessionProps>
           lead_time_days: null,
           layout_options: null,
           artwork_specs: null,
+          print_surface: null,
+          treatment: null,
         };
         const rowId = await createProduct(db, input);
         const created = await getProduct(db, rowId);
@@ -483,6 +485,8 @@ export class StoreMcp extends McpAgent<Env, Record<string, never>, SessionProps>
           lead_time_days: cur.lead_time_days,
           layout_options: cur.layout_options,
           artwork_specs: cur.artwork_specs,
+          print_surface: cur.print_surface,
+          treatment: cur.treatment,
         };
         await updateProduct(db, cur.id, input);
         return result({ id: requirePublicId(cur.public_id, cur.id, 'product'), slug: cur.slug });

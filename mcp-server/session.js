@@ -351,8 +351,10 @@ function giftLockedReply(env, row, item, product) {
     variant_label: row.variant_label,
     price_cents: product.price_cents,
     currency: "usd",
+    lead_time_days: product.lead_time_days ?? null,
+    layout_options: product.layout_options || DEFAULT_LAYOUT_OPTIONS,
     instruction:
-      "Gift locked. Render the Print Layout Designs locally from the locked pitch_text only — the arrangement changes, never the words — and present them for the user's pick. Then call approve_layout with the picked letter.",
+      "Gift locked. Render the Print Layout Designs locally from the locked pitch_text only — the arrangement changes, never the words — using the layout_options above (the item's real A/B/C descriptions) to label the mockups, and present them for the user's pick. Then call approve_layout with the picked letter.",
     next: NEXT_STEP.GIFT_LOCKED,
   };
 }

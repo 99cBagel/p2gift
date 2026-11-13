@@ -30,6 +30,8 @@ const product = (overrides: Partial<Product> = {}): Product => ({
   lead_time_days: null,
   layout_options: null,
   artwork_specs: null,
+  print_surface: null,
+  treatment: null,
   related_ids: null,
   created_at: '2026-01-01T00:00:00Z',
   ...overrides,

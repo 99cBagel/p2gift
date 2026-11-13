@@ -97,8 +97,7 @@ Rules of the wizard:
 
 - Worked example: `p2gift://examples/default.md` — the wizard run, with the marks above; the text carries the rules + the flow. Learn from it first.
 - Images: the example's image assets are presentation links — fetch one only to show it to the user or to check a mockup, not to learn the flow.
-- Layouts: `p2gift://examples/print-layout-example.md`.
-- Live inventory: `p2gift://examples/inventory/inventory.json`.
+- Live inventory: the store's own product list — `service_info` shows it (names, surfaces, Lead_Times). There is no separate inventory file; the wizard reads the same products the product page shows.
 
 ## Tools
 
