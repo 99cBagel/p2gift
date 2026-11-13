@@ -353,9 +353,9 @@ function giftLockedReply(env, row, item, product) {
     currency: "usd",
     lead_time_days: product.lead_time_days ?? null,
     layout_options: product.layout_options || DEFAULT_LAYOUT_OPTIONS,
-    themed_base_image_url: product.image_key ? `${SITE}/images/${product.image_key}` : null,
+    themed_base_image: product.image_key ? `${SITE}/images/${product.image_key}` : null,
     instruction:
-      "Gift locked. Render the 3 Print Layout Design mockups locally ON the themed-base image (themed_base_image_url): download it and apply the locked pitch_text onto the product itself, in the locked variant_label's color — the mockups show the product with the pitch on it, never bare text-layout panels. The arrangement follows the layout_options above (the item's real A/B/C descriptions); the words never change. Present the 3 mockups for the user's pick. Then call approve_layout with the picked letter.",
+      "Gift locked. Render the layout mockups locally ON the themed_base_image: download it and apply the locked pitch_text onto the product itself, in the locked variant_label's color — one mockup per layout option (the layout_options above, the item's real A/B/C descriptions), so they are clean mockups of the real product, never bare text-layout panels. The words never change. Present the mockups for the user's pick. Then call approve_layout with the picked letter.",
     next: NEXT_STEP.GIFT_LOCKED,
   };
 }

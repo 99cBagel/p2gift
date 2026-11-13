@@ -154,7 +154,7 @@ const TOOLS = [
   },
   {
     name: "select_gift",
-    description: "Stage 3 (Gift): lock the gift from the pick message the user pasted back from the product page — `I pick N — <gift item name>[, Color: <color>] [<image url>]`. The number maps to the product page's order; a pick whose surface cannot bear the locked pitch is rejected.",
+    description: "Stage 3 (Gift): lock the gift from the pick message the user pasted back from the product page — `I pick N — <gift item name>[, Color: <color>] [<image url>]`. The number maps to the product page's order; a pick whose surface cannot bear the locked pitch is rejected. On the lock it feeds back the item's layout_options and themed_base_image for the layout stage.",
     inputSchema: {
       type: "object",
       properties: {

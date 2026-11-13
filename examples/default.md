@@ -64,11 +64,11 @@ I pick 3
 
 ```
 🔧 select_gift(gift_id)
-📩 = (Themed-Base Image)
+📩 = (Layout_Options + Themed-Base Image)
 🔒 gift_id=3
 🖥️ Generate_LayoutOptions — local: the 3 layout mockups are
-   rendered on the Assistant's side, on the themed-base image,
-   from the locked pitch
+   rendered on the Assistant's side — one per layout option —
+   on the themed-base image, from the locked pitch
 📍 LAYOUT_OPTIONS
 
 Gift is confirmed. Pitch of xDrive AFM Certification — AgileFlex Manufacturing is confirmed.

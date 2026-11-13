@@ -38,9 +38,11 @@ done locally. Craft notes for each:
 
 ### Render the layout mockups
 
-- Render the three Print Layout Designs (A, B, C) locally, from the **locked** `pitch_text` only — ON the themed-base image the server fed at the gift lock (`themed_base_image_url` in the select_gift reply): download it and apply the pitch onto the product itself, in the locked variant's color.
+- At the gift lock the server feeds `layout_options` — the Print Layout Design Options, A, B, or C — and `themed_base_image` (its URL, in the select_gift reply): the source base the designs are applied on.
+- Render the three layout mockups locally, from the **locked** `pitch_text` only — ON the themed-base image: download it and apply the pitch onto the product itself, in the locked variant's color, one mockup per layout option. That is what makes them clean mockups of the real product.
 - The mockups show the product with the pitch on it — never bare text-layout panels.
 - Only the arrangement changes between them — never the words, never the punctuation.
+- The user picks one → 🔧 `approve_layout` locks that layout option → 📩 the server replies with the `ARTWORK_SPECS`.
 
 ### Render the Final Print Artwork
 
