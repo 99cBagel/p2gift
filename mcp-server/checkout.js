@@ -163,14 +163,13 @@ async function orderByPublicId(env, publicId) {
 async function linkSessionOrder(env, row) {
   if (row.order_public_id) return orderByPublicId(env, row.order_public_id);
   if (!row.prefill_token) return null;
-  const prefill = await env.DB.prepare("SELECT status, total_cents FROM prefill_carts WHERE token = ?")
+  const prefill = await env.DB.prepare("SELECT status, total_cents, consumed_at FROM prefill_carts WHERE token = ?")
     .bind(row.prefill_token)
     .first();
   if (!prefill || prefill.status !== "consumed") return null;
   const candidates = await env.DB.prepare(
     `SELECT ${ORDER_COLS} FROM orders o
       WHERE o.created_at >= ?
-        AND o.ship_address IS NOT NULL
         AND EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.product_id = ?)
       ORDER BY o.created_at ASC LIMIT 10`,
   )
@@ -191,6 +190,28 @@ async function linkSessionOrder(env, row) {
       ship.postal === lockedShip.postal &&
       order.amount_total_cents === prefill.total_cents
     ) {
+      await patch(env, row.id, { order_public_id: order.public_id });
+      return order;
+    }
+  }
+  // Fallback: with store shipping disabled, checkout collects no
+  // address, so the order carries no ship_address to match. The
+  // consumed prefill is single-use and bound to this session, so an
+  // order for the locked product at the prefill total, created in
+  // the window right after consumption and not claimed by another
+  // wizard session, is this session's order.
+  if (prefill.consumed_at) {
+    const t0 = Date.parse(String(prefill.consumed_at).replace(" ", "T") + "Z");
+    const t1 = t0 + 2 * 60 * 60 * 1000;
+    for (const order of candidates.results ?? []) {
+      const t = Date.parse(String(order.created_at).replace(" ", "T") + "Z");
+      if (order.amount_total_cents !== prefill.total_cents || !(t >= t0 && t <= t1)) continue;
+      const claimed = await env.DB.prepare(
+        "SELECT 1 AS one FROM wizard_sessions WHERE order_public_id = ? AND id != ?",
+      )
+        .bind(order.public_id, row.id)
+        .first();
+      if (claimed) continue;
       await patch(env, row.id, { order_public_id: order.public_id });
       return order;
     }
