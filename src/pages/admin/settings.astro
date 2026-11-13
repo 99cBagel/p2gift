@@ -93,7 +93,7 @@ if (Astro.request.method === 'POST') {
   } else if (action === 'toggle_feature') {
     const feature = String(form.get('feature') ?? '');
     const on = String(form.get('enabled')) === '1'; // `enabled` carries the NEW state
-    if (feature === 'cart_enabled' || feature === 'buy_now_enabled') {
+    if (feature === 'cart_enabled' || feature === 'buy_now_enabled' || feature === 'checkout_gate_enabled') {
       await setFeatureEnabled(env.DB, feature, on);
     } else if (
       feature === 'discounts_enabled' ||
@@ -410,6 +410,12 @@ const baseFeatureRows: { key: string; label: string; desc: string; on: boolean }
     label: 'Buy now',
     desc: 'Express instant-checkout button on product pages — works even with the cart off.',
     on: settings.buyNowEnabled,
+  },
+  {
+    key: 'checkout_gate_enabled',
+    label: 'Checkout sign-in gate',
+    desc: 'Browser OAuth sign-in before payment on agent-prepared checkouts. Off: the buyer goes straight to payment — Stripe collects the email and the card, and the payment is the signing.',
+    on: settings.checkoutGateEnabled,
   },
   {
     key: 'discounts_enabled',

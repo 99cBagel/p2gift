@@ -42,6 +42,7 @@ import {
   oauthIssuer,
 } from './oauth';
 import { getOpenPrefill } from '../orders/prefill';
+import { getSetting } from '../settings/db';
 
 export interface GateIdentity {
   userId: string;
@@ -128,6 +129,22 @@ export async function gateIdentityForRequest(
   env: Cloudflare.Env,
 ): Promise<GateIdentity | null> {
   return parseGateIdentity(readCookie(request, GATE_COOKIE), env);
+}
+
+/**
+ * Whether the checkout sign-in gate is in force. Runtime setting
+ * `checkout_gate_enabled`: '0' = OFF — agent-prefill checkouts go
+ * straight to payment and Stripe's email + payment collection is the
+ * signing. The gate code stays in place; absent = ON, and any read
+ * failure also leaves the gate ON (fail-closed to today's behavior).
+ */
+export async function checkoutGateEnabled(env: Cloudflare.Env): Promise<boolean> {
+  if (!env.DB) return true;
+  try {
+    return (await getSetting(env.DB, 'checkout_gate_enabled')) !== '0';
+  } catch {
+    return true;
+  }
 }
 
 export function isGatePath(pathname: string): boolean {

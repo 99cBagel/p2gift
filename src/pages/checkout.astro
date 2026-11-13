@@ -200,7 +200,11 @@ const agentPrefillRec = prefillToken ? await getOpenPrefill(env.DB, prefillToken
 const gateIdentity = agentPrefillRec
   ? await parseGateIdentity(Astro.cookies.get(GATE_COOKIE)?.value, env)
   : null;
-if (agentPrefillRec && !gateIdentity) {
+// Gate OFF (runtime setting): an agent-prefilled checkout proceeds
+// straight to payment — no sign-in redirect, locked summary shown.
+const gateSatisfied =
+  !Astro.locals.settings.checkoutGateEnabled || Boolean(gateIdentity);
+if (agentPrefillRec && !gateSatisfied) {
   return Astro.redirect(
     `/checkout/signin?next=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`,
     302,
@@ -209,7 +213,7 @@ if (agentPrefillRec && !gateIdentity) {
 // The locked summary data: exactly the lines, total, and destination
 // the agent prepared — shown read-only above the payment form.
 const lockedLines =
-  agentPrefillRec && gateIdentity
+  agentPrefillRec && gateSatisfied
     ? await Promise.all(
         agentPrefillRec.lines.map(async (l) => {
           const p = await getProductByPublicId(env.DB, l.product_public_id);

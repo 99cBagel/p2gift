@@ -67,7 +67,7 @@ const STAGES = [
   "4 Layout — approve_layout locks the Print Layout Design and issues ARTWORK_SPECS",
   "5 Artwork — approve_artwork parks the user-approved Final Print Artwork (no automated check)",
   "6 Order details — set_order_details locks quantity + delivery name/address",
-  "7 Checkout — prepare_checkout issues the signed checkout link; OAuth sign-in happens in the browser, inside this stage only",
+  "7 Checkout — prepare_checkout issues the signed checkout link; the user pays on the store page (this store's OAuth gate is off — Stripe's payment is the signing)",
   "8 Confirmation — get_order_status reports the webhook-settled order back to the Agent",
   "9 Order lookup — lookup_order by order # + order token, no session needed",
 ];
@@ -204,7 +204,7 @@ const TOOLS = [
   },
   {
     name: "prepare_checkout",
-    description: "Stage 7 (Checkout): build the checkout from the locked session — the agent supplies only the session_id; gift, variant, quantity, address, artwork, and price all come from the locked row and the live catalog. Returns checkout_url: a signed, single-use link expiring in about 15 minutes. The user opens it, signs in in the browser (Google, GitHub, or a US phone code — the wizard's only sign-in, inside this stage), sees the locked price and cart, and pays on the store page; the card never passes through the agent. An expired link is re-issued by calling again.",
+    description: "Stage 7 (Checkout): build the checkout from the locked session — the agent supplies only the session_id; gift, variant, quantity, address, artwork, and price all come from the locked row and the live catalog. Returns checkout_url: a signed, single-use link expiring in about 15 minutes. The user opens it, sees the locked price and cart, and pays on the store page — Stripe collects the email and the card (this store's OAuth sign-in gate is off; the payment is the signing); the card never passes through the agent. An expired link is re-issued by calling again.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string" } },
@@ -253,8 +253,18 @@ function toolPayload(id, out) {
 }
 
 // GET /health — public service JSON (no key needed).
-export function handleHealthRequest() {
-  return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "open", checkout_gate: "oauth", example: "p2gift://examples/default.md" }), {
+export async function handleHealthRequest(env) {
+  // checkout_gate mirrors the store's runtime setting: "oauth" when
+  // the browser sign-in gate is in force, "off" when agent-prefill
+  // checkouts go straight to Stripe payment.
+  let checkoutGate = "oauth";
+  try {
+    if (env?.DB) {
+      const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'checkout_gate_enabled'").first();
+      if (row?.value === "0") checkoutGate = "off";
+    }
+  } catch { /* health stays up; the gate reports its default */ }
+  return new Response(JSON.stringify({ service: "p2gift", mcp: "/mcp", version: SERVER.version, auth: "open", checkout_gate: checkoutGate, example: "p2gift://examples/default.md" }), {
     headers: { "content-type": "application/json" },
   });
 }
@@ -354,7 +364,7 @@ export async function handleMcpRequest(request, env, authProps) {
           role: "user",
           content: {
             type: "text",
-            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://examples/connect-prompt/default.md — the connect prompt: what p2gift is, the canonical terms, the lock-stage wizard, the resources and the tools — then 2) p2gift://examples/default.md, the worked example, and 3) know the 6 image assets in the same folder — examples/assets/themed-base.webp, layout-a.webp, layout-b.webp, layout-c.webp, layout-3choices.webp, final_print_artwork.png — as presentation links: fetch one only when you need to show it to the user or check a mockup; the text resources carry the rules, so you do not need to read the images to learn the flow. The wizard: the server holds the session; you hold only the session_id. Start with start_session (Stage 1) once the pitch candidates are drafted locally from the user's source. Each stage locks before the next opens — approve_pitch (the pitch fit-checks against the catalog surfaces; on the lock you receive the product page URL for the user's pick — never present your own gift list or link), select_gift (the user's pasted pick message), approve_layout (returns ARTWORK_SPECS), approve_artwork (the user-approved file, parked as-is), set_order_details (quantity + delivery address, never invented), prepare_checkout (the signed link; the user signs in with OAuth in the browser, inside checkout only, and pays there — the card never passes through you). Then poll get_order_status for the store's confirmation, and know lookup_order + the p2gift-order-lookup skill for later status checks. Never invent pitch wording, quantity, recipient, or price.",
+            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://examples/connect-prompt/default.md — the connect prompt: what p2gift is, the canonical terms, the lock-stage wizard, the resources and the tools — then 2) p2gift://examples/default.md, the worked example, and 3) know the 6 image assets in the same folder — examples/assets/themed-base.webp, layout-a.webp, layout-b.webp, layout-c.webp, layout-3choices.webp, final_print_artwork.png — as presentation links: fetch one only when you need to show it to the user or check a mockup; the text resources carry the rules, so you do not need to read the images to learn the flow. The wizard: the server holds the session; you hold only the session_id. Start with start_session (Stage 1) once the pitch candidates are drafted locally from the user's source. Each stage locks before the next opens — approve_pitch (the pitch fit-checks against the catalog surfaces; on the lock you receive the product page URL for the user's pick — never present your own gift list or link), select_gift (the user's pasted pick message), approve_layout (returns ARTWORK_SPECS), approve_artwork (the user-approved file, parked as-is), set_order_details (quantity + delivery address, never invented), prepare_checkout (the signed link; the user pays on the store page — this store's OAuth gate is off, so Stripe's email + payment collection is the signing; the card never passes through you). Then poll get_order_status for the store's confirmation, and know lookup_order + the p2gift-order-lookup skill for later status checks. Never invent pitch wording, quantity, recipient, or price.",
           },
         }],
       });
@@ -437,7 +447,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/") return handleConnectRequest(env);
-    if (url.pathname === "/health") return handleHealthRequest();
+    if (url.pathname === "/health") return handleHealthRequest(env);
     if (url.pathname === "/inventory") return handleInventoryRequest(env);
     if (url.pathname === "/connect") {
       return Response.redirect(new URL("/", request.url), 301);

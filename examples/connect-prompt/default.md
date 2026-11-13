@@ -72,12 +72,14 @@ Rules of the wizard:
   the locked text, character for character.
 - The product page is for the user, not for you: never browse it.
   Its URL comes to you in the 📩 from `approve_pitch`; pass it on.
-- No sign-in at any stage before checkout. Sign-in is OAuth, in
-  the browser, **inside checkout only** (stage 7): the user opens
-  the prefilled link (expires in about 15 minutes — hand it over
-  right away), signs in, sees the locked price and cart, and pays
-  on the store page. Card details never pass through you. Link
-  expired? `prepare_checkout` again — the locks hold.
+- No sign-in at any stage. This store's checkout gate is **off**:
+  the user opens the prefilled link (expires in about 15 minutes —
+  hand it over right away), sees the locked price and cart, and
+  pays on the store page — Stripe collects the email and the card,
+  and the payment is the signing. Card details never pass through
+  you. Link expired? `prepare_checkout` again — the locks hold.
+  (The OAuth gate code is kept: if the operator turns it on in
+  Admin → Settings, sign-in returns **inside checkout only**.)
 
 ## Stage 8 — Confirmation (MCP → Agent)
 
@@ -114,7 +116,7 @@ Rules of the wizard:
 | `approve_layout` | Locks the picked Print Layout Design (A/B/C) → 📩 ARTWORK\_SPECS for the locked gift + layout. |
 | `approve_artwork` | Submits your locally rendered Final Print Artwork file → file rail (PNG only, under 15 MB, transparent background, single color) → locks it. Fail → the reasons; fix and resubmit. |
 | `set_order_details` | Records qty + recipient exactly as the user gave them. |
-| `prepare_checkout` | Builds the cart from the locked session — item, artwork, qty, and the catalog price read server-side — and returns the signed prefilled checkout link (\~15 min). OAuth sign-in happens in the browser, inside checkout. |
+| `prepare_checkout` | Builds the cart from the locked session — item, artwork, qty, and the catalog price read server-side — and returns the signed prefilled checkout link (\~15 min). The buyer pays on the store page (gate off — Stripe's payment is the signing). |
 | `get_order_status` | Stage 8: this session's order state from the store (webhook-settled). Poll until paid / expired / failed. |
 | `lookup_order` | Stage 9: order status + expected delivery date by order # + order token, no session needed. |
 

@@ -46,7 +46,9 @@ const prefillGateRec = await (async () => {
 const gateIdentity = prefillGateRec
   ? await parseGateIdentity(Astro.cookies.get(GATE_COOKIE)?.value, env)
   : null;
-const gatePending = Boolean(prefillGateRec && !gateIdentity);
+const gatePending = Boolean(
+  (settings?.checkoutGateEnabled ?? true) && prefillGateRec && !gateIdentity,
+);
 
 // Destination pre-selector for Stripe's hosted checkout: Stripe shows a static
 // rate list set before it knows the address, so let the shopper pick the country

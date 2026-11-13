@@ -21,6 +21,7 @@ export type SettingKey =
   | 'payment_methods_disabled' // CSV of payment methods the admin switched off
   | 'cart_enabled' // '0' = cart/checkout off (browse-only catalog); absent = on
   | 'buy_now_enabled' // '0' = hide "Buy now" (cart-only purchase); absent = on
+  | 'checkout_gate_enabled' // '0' = browser OAuth sign-in gate at checkout OFF (agent-prefill checkouts go straight to payment; Stripe collects email + payment); absent = on
   | 'search_provider' // 'fts' | 'vector' — overrides config/SEARCH_PROVIDER; absent = default
   // Runtime overrides of build-time config toggles ('1'/'0'; absent = inherit config).
   | 'discounts_enabled' // overrides config.discounts.enabled
@@ -58,7 +59,7 @@ export type SettingKey =
   | `enc:${string}`; // AES-GCM-encrypted secret (see features/secrets/store.ts), e.g. 'enc:stripe_secret_key'. Never loaded as plaintext into locals.
 
 /** The storefront features that can be flipped at runtime (default on). */
-export type FeatureKey = 'cart_enabled' | 'buy_now_enabled';
+export type FeatureKey = 'cart_enabled' | 'buy_now_enabled' | 'checkout_gate_enabled';
 
 export interface StoreSettings {
   setupComplete: boolean;
@@ -73,6 +74,9 @@ export interface StoreSettings {
   cartEnabled: boolean;
   /** "Buy now" instant-checkout button shown (default true). Requires cartEnabled. */
   buyNowEnabled: boolean;
+  /** Browser OAuth sign-in gate for agent-prefill checkouts (default true).
+   *  Off → the buyer goes straight to payment; Stripe is the signing. */
+  checkoutGateEnabled: boolean;
   /** Search backend chosen at runtime, or null to use the build-time default
    *  (config.search.provider / SEARCH_PROVIDER). */
   searchProvider: 'fts' | 'vector' | null;
@@ -190,6 +194,7 @@ export function parseStoreSettings(
       .filter(Boolean),
     cartEnabled: map.get('cart_enabled') !== '0',
     buyNowEnabled: map.get('buy_now_enabled') !== '0',
+    checkoutGateEnabled: map.get('checkout_gate_enabled') !== '0',
     searchProvider: map.get('search_provider') === 'vector' ? 'vector'
       : map.get('search_provider') === 'fts' ? 'fts'
       : null,

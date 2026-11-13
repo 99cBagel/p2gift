@@ -107,6 +107,18 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
   await patch(env, row.id, { state: "CHECKOUT_ISSUED", prefill_token: token });
   const { row: updated } = await loadRow(env, row.id);
 
+  // Checkout gate state (runtime setting `checkout_gate_enabled`):
+  // '0' = off — the buyer goes straight to payment and Stripe's
+  // email + payment collection is the signing. Absent/on = the
+  // browser OAuth sign-in inside checkout.
+  let gateOff = false;
+  try {
+    const gateRow = await env.DB.prepare(
+      "SELECT value FROM settings WHERE key = 'checkout_gate_enabled'",
+    ).first();
+    gateOff = gateRow?.value === "0";
+  } catch { /* a settings read failure leaves the gate wording at its default */ }
+
   return {
     session: sessionView(updated),
     state: updated.state,
@@ -120,8 +132,9 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
       currency: "usd",
       ship_to: `${shipping.name}, ${shipping.city}, ${shipping.postal}, ${shipping.country}`,
     },
-    instruction:
-      "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the locked price and cart, and pays on the store page; the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment.",
+    instruction: gateOff
+      ? "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user sees the locked price and cart and pays on the store page — Stripe collects the email and the card there, and the payment is the signing (this store's OAuth gate is off); the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment."
+      : "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the locked price and cart, and pays on the store page; the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment.",
     next: NEXT_STEP.CHECKOUT_ISSUED,
   };
 }

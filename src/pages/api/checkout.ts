@@ -14,7 +14,7 @@ import {
 } from '../../features/orders/guestAccess.ts';
 import { lineUnitPriceCents } from '../../features/cart/key';
 import { applyPrefillByToken, getOpenPrefill, type PrefillRecord } from '../../features/orders/prefill';
-import { gateIdentityForRequest } from '../../features/auth/checkoutGate';
+import { gateIdentityForRequest, checkoutGateEnabled } from '../../features/auth/checkoutGate';
 import { productImageUrl } from '../../features/products/image';
 import { readCart, resolveCart } from '../../features/cart/cart';
 import {
@@ -124,6 +124,9 @@ async function gateBlockFor(
   if (!prefillToken) return { rec: null, block: null };
   const rec = await getOpenPrefill(env.DB, prefillToken);
   if (!rec) return { rec: null, block: null };
+  // Gate OFF (runtime setting): no sign-in required — the rec still
+  // drives the locked cart/price snapshot check below.
+  if (!(await checkoutGateEnabled(env))) return { rec, block: null };
   const identity = await gateIdentityForRequest(request, env);
   if (identity) return { rec, block: null };
   const block =

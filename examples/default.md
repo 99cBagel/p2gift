@@ -171,9 +171,10 @@ read from the catalog by the server.
 
 [Proceed to check out](https://p2gift.keeg.uk/cart/prefill/…) —
 open it within about 15 minutes. Inside checkout, in your
-browser: you sign in with OAuth, see the locked price and cart,
-and pay on the store page. Your card never passes through me.
-No stage before checkout asks you to sign in.
+browser: you see the locked price and cart, and pay on the
+store page — Stripe collects your email and card, and the
+payment is the signing (this store's sign-in gate is off).
+Your card never passes through me.
 ```
 
 (user)

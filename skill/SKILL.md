@@ -17,7 +17,7 @@ would drift.
    resource `p2gift://examples/connect-prompt/default.md`.
    Read it first, before the first order step. It is the single
    authority for the wizard: the stages, the tools, the locks,
-   the checkout rule (OAuth sign-in inside checkout only), and
+   the checkout rule (this store's OAuth gate is off — Stripe's payment is the signing), and
    Stages 8–9 (Confirmation, Order Lookup). If this skill and
    the connect prompt ever disagree, the connect prompt wins.
 2. **Worked example** — `examples/default.md`,
