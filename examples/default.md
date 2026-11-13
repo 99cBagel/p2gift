@@ -14,8 +14,9 @@ Custom connect to p2gift: https://p2gift.keeg.uk/mcp.....
 ```
 
 (assistant)
-📍 CONNECTED
 ```
+📍 CONNECTED
+
 Connected ✓ — p2gift restored and live (10 wizard tools; /health: v0.4.0, gate off). Saved as a reusable skill ✓.
 
 Skills, telegram style:
