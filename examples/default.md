@@ -80,15 +80,15 @@ Tap Pick on an item and paste the message back here.
 (user)
 
 ```
-I pick 3
+I pick 1 — Personalized Custom Print in USA Tumbler 20oz Stainless Steel Double Wall Coffee Cup with Lid & Straw Insulated Tumbler with Colorful Text Logo Photo https://p2gift.keeg.uk/images/catalog/B0FJLSKF6V/themed-base.png
 ```
 
 (assistant)
 
 ```
-🔧 select_gift(gift_id)
+🔧 select_gift(session_id, pick)
 📩 = (Layout_Options + Themed-Base Image)
-🔒 gift_id=3
+🔒 gift · 📍 GIFT_LOCKED
 🖥️ Generate_LayoutOptions — local: the 3 layout mockups are
    rendered on the Assistant's side — one per layout option —
    on the themed-base image, from the locked pitch
