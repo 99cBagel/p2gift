@@ -9,14 +9,13 @@ the server sees, so the user wouldn't normally see them. Each stage:
 propose → approve → lock. Locks move forward only.
 
 (user)
-\`\`\`
+```
 Custom connect to p2gift: https://p2gift.keeg.uk/mcp.....
-\`\`\`
+```
 
 (assistant)
 📍 CONNECTED
-\`\`\`
-
+```
 Connected ✓ — p2gift restored and live (10 wizard tools; /health: v0.4.0, gate off). Saved as a reusable skill ✓.
 
 Skills, telegram style:
@@ -28,8 +27,7 @@ How to Start
 
 - attach a PPT, or give the pitch as text
 - message: "Use p2gift: extract key messages and generate custom gift ideas." ✄
-
----
+```
 
 (user)
 
