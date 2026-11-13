@@ -144,7 +144,7 @@ function isoUtc(sqlTs) {
 }
 
 const ORDER_COLS = `o.public_id, o.status, o.amount_total_cents, o.currency,
-  o.stripe_session_id, o.created_at, o.fulfillment_status, o.tracking_carrier,
+  o.provider_session_id AS stripe_session_id, o.created_at, o.fulfillment_status, o.tracking_carrier,
   o.tracking_number, o.fulfilled_at, o.ship_address,
   (SELECT oi.name FROM order_items oi WHERE oi.order_id = o.id ORDER BY oi.id LIMIT 1) AS item_name,
   (SELECT p.lead_time_days FROM order_items oi JOIN products p ON p.id = oi.product_id

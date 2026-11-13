@@ -216,6 +216,25 @@ export async function loadKeepsakePage(
         ];
       }
 
+      // The Themed-Base Image — the product's own stored image, the same
+      // one the pick message links and the wizard feeds for rendering
+      // mockups — leads the gallery; catalog photos follow.
+      if (product.image_key) {
+        const base = buildStorefrontImage(product.image_key, product.name, {
+          baseUrl: options.imageBaseUrl,
+          delivery: options.delivery,
+          sizes: HERO_SIZES,
+          priority: index === 0,
+        });
+        const baseEntry: KeepsakeGalleryImage = {
+          src: base.src,
+          ...(base.srcset ? { srcset: base.srcset } : {}),
+          ...(base.sizes ? { sizes: base.sizes } : {}),
+          alt: product.name,
+        };
+        gallery = [baseEntry, ...gallery.filter((g) => g.src !== baseEntry.src)];
+      }
+
       const hasVariants = variants.length > 0;
       const variantPrices = variants.map((v) => v.price_cents);
       const displayPriceCents = hasVariants ? Math.min(...variantPrices) : product.price_cents;

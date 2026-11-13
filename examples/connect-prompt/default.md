@@ -26,9 +26,12 @@ For: the connected Agent. Read on connect, before any order.
 ## Who does what
 
 - **Yours, locally (🖥️):** extract the pitch from the deck; render
-  the layout mockups; render the Final Print Artwork file.
+  the layout mockups — on the themed-base image the server feeds at
+  the gift lock, so they show the product with the pitch on it,
+  never bare text panels; render the Final Print Artwork file.
 - **The server's (🔧/📩):** session state and locks, the product
-  page URL, the ARTWORK_SPECS, prices, checkout, order status.
+  page URL, the themed-base image, the ARTWORK_SPECS, prices,
+  checkout, order status.
 - Never invent: pitch wording, gift availability, price, qty,
   recipient. If it isn't locked or in a 📩, you don't have it.
 
@@ -49,7 +52,7 @@ For: the connected Agent. Read on connect, before any order.
 | 1 | Intake | 🖥️ extract pitch → 🔧 `start_session` | SOURCE_LOADED |
 | 2 | Pitch | user picks/edits a pitch option → 🔧 `approve_pitch` → 📩 product page URL | 🔒 PITCH_LOCKED |
 | 3 | Gift | user taps Pick on the product page, pastes "I pick N" → 🔧 `select_gift` | 🔒 gift locked |
-| 4 | Layouts | 🖥️ render the 3 layout mockups → user picks → 🔧 `approve_layout` → 📩 ARTWORK_SPECS | 🔒 layout · 📍 ARTWORK_SPECS |
+| 4 | Layouts | 🖥️ render the 3 layout mockups on the themed-base image → user picks → 🔧 `approve_layout` → 📩 ARTWORK_SPECS | 🔒 layout · 📍 ARTWORK_SPECS |
 | 5 | Artwork | 🖥️ render the artwork per ARTWORK_SPECS → user approves → 🔧 `approve_artwork` with the file | 🔒 ARTWORK_LOCKED |
 | 6 | Order | 🔧 `set_order_details` — qty + recipient, from the user only | — |
 | 7 | Checkout | 🔧 `prepare_checkout` → 📩 prefilled checkout link | CHECKOUT_ISSUED |

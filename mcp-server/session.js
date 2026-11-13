@@ -146,7 +146,7 @@ async function patch(env, id, fields) {
 async function productForItem(env, item) {
   if (!item?.store?.slug) return null;
   return env.DB.prepare(
-    "SELECT id, public_id, name, slug, price_cents, stock, active, lead_time_days, layout_options, artwork_specs FROM products WHERE slug = ?",
+    "SELECT id, public_id, name, slug, price_cents, stock, active, lead_time_days, layout_options, artwork_specs, image_key FROM products WHERE slug = ?",
   )
     .bind(item.store.slug)
     .first();
@@ -353,8 +353,9 @@ function giftLockedReply(env, row, item, product) {
     currency: "usd",
     lead_time_days: product.lead_time_days ?? null,
     layout_options: product.layout_options || DEFAULT_LAYOUT_OPTIONS,
+    themed_base_image_url: product.image_key ? `${SITE}/images/${product.image_key}` : null,
     instruction:
-      "Gift locked. Render the Print Layout Designs locally from the locked pitch_text only — the arrangement changes, never the words — using the layout_options above (the item's real A/B/C descriptions) to label the mockups, and present them for the user's pick. Then call approve_layout with the picked letter.",
+      "Gift locked. Render the 3 Print Layout Design mockups locally ON the themed-base image (themed_base_image_url): download it and apply the locked pitch_text onto the product itself, in the locked variant_label's color — the mockups show the product with the pitch on it, never bare text-layout panels. The arrangement follows the layout_options above (the item's real A/B/C descriptions); the words never change. Present the 3 mockups for the user's pick. Then call approve_layout with the picked letter.",
     next: NEXT_STEP.GIFT_LOCKED,
   };
 }
