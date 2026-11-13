@@ -8,6 +8,8 @@ For: the connected Agent. Read on connect, before any order.
 - In: Pitch Text, or a PPT deck.
 - Out: the pitch printed on a gift item, sent to the recipient.
 - Users: Muse users first (Nov 2026); other Agents later.
+- The flow is a **lock-stage wizard**: the server holds the session
+  and the locks. You propose; the user approves; the server locks.
 
 ## Why
 
@@ -15,25 +17,86 @@ For: the connected Agent. Read on connect, before any order.
 - Printers want an MOQ. p2gift: **qty 1 OK, no MOQ, fast**.
 - Agentic end to end: you run it; the user only picks + approves.
 
+## Marks used in the worked example
+
+- 🔧 tool call — Agent → MCP. 📩 tool reply — MCP → Agent.
+- 🖥️ your local work — no server call.
+- 🔒 lock set (server-side, write-once). 📍 session state.
+
+## Who does what
+
+- **Yours, locally (🖥️):** extract the pitch from the deck; render
+  the layout mockups; render the Final Print Artwork file.
+- **The server's (🔧/📩):** session state and locks, the product
+  page URL, the ARTWORK_SPECS, prices, checkout, order status.
+- Never invent: pitch wording, gift availability, price, qty,
+  recipient. If it isn't locked or in a 📩, you don't have it.
+
 ## Terms
 
 - `pitch_text` = Pitch Text / Feature Pitch. Never "snippet".
 - `gift_item` = gift / gift item — the item the pitch prints on.
 - `print_layout_design` = Print Layout Design — A, B, or C.
-- `final_print_artwork` = Final Print Artwork — print-ready PNG: transparent background, single color, no logo, one file, under 15 MB. Shape-checked before checkout (see `prepare_checkout`); the visual check is the user's artwork approval.
+- `final_print_artwork` = Final Print Artwork — print-ready PNG: transparent background, single color, no logo, one file, under 15 MB. File-checked at the artwork lock; the visual check is the user's artwork approval.
+- `ARTWORK_SPECS` = the print specs the server issues at the layout lock, for the locked gift_item + print_layout_design. The Final Print Artwork is rendered to them.
+- `session_id` = the wizard session, issued by `start_session`. Every 🔧 carries it.
+- `Lead_Time` = each gift item's own lead time. Expected delivery date = order date + the picked item's `Lead_Time`.
 
-## Flow — 5 steps, in order, no skipping
+## Stages — in order, enforced by the server
 
-1. **pitch** — confirm the Pitch Text as-is.
-2. **gift** — suggest gift items; user picks 1.
-3. **mockup** — show the pick; Print Layout Designs A/B/C.
-4. **artwork** — Final Print Artwork; user approves.
-5. **checkout** — qty + recipient + price. Never invent any of them. Then `prepare_checkout` shape-checks the order and returns the prefilled checkout link — it expires in about 15 minutes, so hand it over right away. The user opens it, signs in in the browser (Google, GitHub, or a US phone code), sees the locked price and cart, and pays on the store page. No sign-in is needed to connect or to run steps 1–5 — the sign-in happens only there, at payment. If the link expires, call `prepare_checkout` again to re-issue it.
+| # | Stage | Move | 📍 after |
+|---|---|---|---|
+| 1 | Intake | 🖥️ extract pitch → 🔧 `start_session` | SOURCE_LOADED |
+| 2 | Pitch | user picks/edits a pitch option → 🔧 `approve_pitch` → 📩 product page URL | 🔒 PITCH_LOCKED |
+| 3 | Gift | user taps Pick on the product page, pastes "I pick N" → 🔧 `select_gift` | 🔒 gift locked |
+| 4 | Layouts | 🖥️ render the 3 layout mockups → user picks → 🔧 `approve_layout` → 📩 ARTWORK_SPECS | 🔒 layout · 📍 ARTWORK_SPECS |
+| 5 | Artwork | 🖥️ render the artwork per ARTWORK_SPECS → user approves → 🔧 `approve_artwork` with the file | 🔒 ARTWORK_LOCKED |
+| 6 | Order | 🔧 `set_order_details` — qty + recipient, from the user only | — |
+| 7 | Checkout | 🔧 `prepare_checkout` → 📩 prefilled checkout link | CHECKOUT_ISSUED |
+| 8 | Confirmation | 🔧 `get_order_status` until paid | 🔒 ORDER_CONFIRMED |
+| 9 | Lookup | 🔧 `lookup_order` — any time later | — |
+
+Rules of the wizard:
+
+- One call advances exactly one stage. An out-of-order 🔧 is
+  rejected; the rejection names the current 📍 and the next legal
+  step — follow it.
+- Locks are write-once and live on the server. To change a locked
+  value, ask the user, then unlock that stage — every downstream
+  lock clears with it.
+- The pitch prints **exactly as locked**. Your local renders use
+  the locked text, character for character.
+- The product page is for the user, not for you: never browse it.
+  Its URL comes to you in the 📩 from `approve_pitch`; pass it on.
+- No sign-in at any stage before checkout. Sign-in is OAuth, in
+  the browser, **inside checkout only** (stage 7): the user opens
+  the prefilled link (expires in about 15 minutes — hand it over
+  right away), signs in, sees the locked price and cart, and pays
+  on the store page. Card details never pass through you. Link
+  expired? `prepare_checkout` again — the locks hold.
+
+## Stage 8 — Confirmation (MCP → Agent)
+
+- After the user checks out, poll `get_order_status(session_id)`
+  until it returns paid. The store's payment webhook is the only
+  truth — the browser's success page proves nothing. Not paid yet
+  means "not confirmed yet", never "placed".
+- On paid, report the confirmation in three parts:
+  1. **Payment confirmation (Stripe):** order #, amount, paid by card.
+  2. **Expected delivery date:** [order date + {gift_id} Lead_Time] — as returned; once the order ships, the carrier's date replaces it.
+  3. **Order lookup:** "You can look up the status of this order — here is the related skill: `p2gift-order-lookup`" (order # + order token).
+
+## Stage 9 — Order Lookup
+
+- Any time later, 🔧 `lookup_order(order_id, order_token)` →
+  current status + expected delivery date. This is what the
+  `p2gift-order-lookup` skill wraps; the wizard session is not
+  needed for it.
 
 ## Resources — read first
 
-- Worked example: `p2gift://examples/default.md` — the text carries the rules + the flow; learn from it first.
-- Images: the example's 6 image assets are presentation links — fetch one only to show it to the user or to check a mockup, not to learn the flow.
+- Worked example: `p2gift://examples/default.md` — the wizard run, with the marks above; the text carries the rules + the flow. Learn from it first.
+- Images: the example's image assets are presentation links — fetch one only to show it to the user or to check a mockup, not to learn the flow.
 - Layouts: `p2gift://examples/print-layout-example.md`.
 - Live inventory: `p2gift://examples/inventory/inventory.json`.
 
@@ -41,14 +104,15 @@ For: the connected Agent. Read on connect, before any order.
 
 | Tool | What it does |
 |---|---|
-| `service_info` | Live service overview — the runtime companion to this connect prompt: the gift item pool, the catalog link, and how to pick. |
-| `list_inventory` | The live gift item inventory from R2 — the source `suggest_gifts` picks from. |
-| `suggest_gifts` | Pitch Text in → gift concepts out (up to three), each with its Product Page `image_url`, a ready `pick_message`, and the `catalog_url` for the [view catalog] link. |
-| `suggest_print_layout` | Pitch Text in → the three Print Layout Designs (A, B, C) out, each with its example image. |
-| `start_order` | Opens an order session and returns step 1 (pitch). |
-| `get_next_step` | Returns the current step for a session. |
-| `confirm_step` | Confirms the current step and advances exactly one. Rejects out-of-order confirmations. |
-| `prepare_checkout` | The checkout preparation. Shape-checks a completed order — cart vs the live catalog (item, variant, qty, stock, address, quoted price must equal the catalog total) and the Final Print Artwork file rules (PNG only, under 15 MB, transparent background, single color). The visual side (text as printed, layout, no logo) is covered by the user's artwork approval. Pass → a prefilled checkout link (expires in ~15 min) — the user signs in in the browser, sees the locked price and cart, and pays. Fail → the reasons; fix and resubmit. |
+| `start_session` | Opens a wizard session with your extracted pitch candidates → 📩 `session_id`, 📍 SOURCE_LOADED. |
+| `approve_pitch` | Locks the user's picked/edited pitch_text → 📩 the product page URL. Rail: the pitch is fit-checked against the catalog surfaces; a pitch that fits nothing comes back with the reason — re-extract or re-condense and resubmit. |
+| `select_gift` | Locks the gift item from the user's pasted pick ("I pick N"). |
+| `approve_layout` | Locks the picked Print Layout Design (A/B/C) → 📩 ARTWORK_SPECS for the locked gift + layout. |
+| `approve_artwork` | Submits your locally rendered Final Print Artwork file → file rail (PNG only, under 15 MB, transparent background, single color) → locks it. Fail → the reasons; fix and resubmit. |
+| `set_order_details` | Records qty + recipient exactly as the user gave them. |
+| `prepare_checkout` | Builds the cart from the locked session — item, artwork, qty, and the catalog price read server-side — and returns the signed prefilled checkout link (~15 min). OAuth sign-in happens in the browser, inside checkout. |
+| `get_order_status` | Stage 8: this session's order state from the store (webhook-settled). Poll until paid / expired / failed. |
+| `lookup_order` | Stage 9: order status + expected delivery date by order # + order token, no session needed. |
 
 ## Live Connect
 
