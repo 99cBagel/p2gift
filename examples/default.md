@@ -8,11 +8,14 @@ server call), 🔒 = lock set, 📍 = session state. Tool lines are what
 the server sees, so the user wouldn't normally see them. Each stage:
 propose → approve → lock. Locks move forward only.
 
----
+(user)
+\`\`\`
+Custom connect to p2gift: https://p2gift.keeg.uk/mcp.....
+\`\`\`
 
-## Reference — skills briefer
-
-What the Agent replies right after connecting, before the run starts:
+(assistant)
+📍 CONNECTED
+\`\`\`
 
 Connected ✓ — p2gift restored and live (10 wizard tools; /health: v0.4.0, gate off). Saved as a reusable skill ✓.
 
@@ -21,10 +24,10 @@ Skills, telegram style:
 p2gift — order wizard: pitch or PPT in → pitch lock → gift pick → mockups on the themed-base image → artwork → checkout → confirmation
 p2gift-order-lookup — status later: order # + token → stage + expected delivery date
 
-## How to Start
+How to Start 
 
 - attach a PPT, or give the pitch as text
-- message: "Use p2gift: extract key messages and generate custom gift ideas."![CopyChar](./assets/copychar.png)
+- message: "Use p2gift: extract key messages and generate custom gift ideas." ✄
 
 ---
 

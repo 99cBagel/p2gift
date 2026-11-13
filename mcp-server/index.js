@@ -86,6 +86,7 @@ const EXAMPLE_FILES = [
   { key: "examples/assets/layout-c.webp", mimeType: "image/webp", name: "Example asset — Layout C", description: "Layout C: 2 lines, em dash kept." },
   { key: "examples/assets/layout-3choices.webp", mimeType: "image/webp", name: "Example asset — Layouts A, B, C in one image", description: "The three print layout designs side by side in one strip — A left, B middle, C right; the combined image shown in the default workflow example." },
   { key: "examples/assets/final_print_artwork.png", mimeType: "image/png", name: "Example asset — Final Print Artwork, Layout B", description: "Final Print Artwork, Layout B, white text on black." },
+  { key: "examples/assets/copychar.png", mimeType: "image/png", name: "Example asset — CopyChar icon", description: "The copy icon at the end of the How to Start message line in the skills briefer." },
 ];
 const EXAMPLE_RESOURCES = EXAMPLE_FILES.map((f) => ({
   uri: `p2gift://${f.key}`,
@@ -351,7 +352,7 @@ export async function handleMcpRequest(request, env, authProps) {
     payload = result(id, {
       prompts: [{
         name: "p2gift-connect",
-        description: "Connect to p2gift: read the connect prompt first, then the worked example, then open a wizard session with start_session.",
+        description: "Connect to p2gift: read the connect prompt first, then the worked example, send the skills briefer, then open a wizard session with start_session.",
       }],
     });
   } else if (method === "prompts/get") {
@@ -359,12 +360,12 @@ export async function handleMcpRequest(request, env, authProps) {
       payload = error(id, -32602, `Unknown prompt: ${params?.name}`);
     } else {
       payload = result(id, {
-        description: "Connect to p2gift: read the connect prompt first, then the worked example, then open a wizard session with start_session.",
+        description: "Connect to p2gift: read the connect prompt first, then the worked example, send the skills briefer, then open a wizard session with start_session.",
         messages: [{
           role: "user",
           content: {
             type: "text",
-            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://examples/connect-prompt/default.md — the connect prompt: what p2gift is, the canonical terms, the lock-stage wizard, the resources and the tools — then 2) p2gift://examples/default.md, the worked example, and 3) know the 6 image assets in the same folder — examples/assets/themed-base.webp, layout-a.webp, layout-b.webp, layout-c.webp, layout-3choices.webp, final_print_artwork.png — as presentation links: fetch one only when you need to show it to the user or check a mockup; the text resources carry the rules, so you do not need to read the images to learn the flow. The wizard: the server holds the session; you hold only the session_id. Start with start_session (Stage 1) once the pitch candidates are drafted locally from the user's source. Each stage locks before the next opens — approve_pitch (the pitch fit-checks against the catalog surfaces; on the lock you receive the product page URL for the user's pick — never present your own gift list or link), select_gift (the user's pasted pick message), approve_layout (returns ARTWORK_SPECS), approve_artwork (the user-approved file, parked as-is), set_order_details (quantity + delivery address, never invented), prepare_checkout (the signed link; the user pays on the store page — this store's OAuth gate is off, so Stripe's email + payment collection is the signing; the card never passes through you). Then poll get_order_status for the store's confirmation, and know lookup_order + the p2gift-order-lookup skill for later status checks. Never invent pitch wording, quantity, recipient, or price.",
+            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://examples/connect-prompt/default.md — the connect prompt: what p2gift is, the canonical terms, the lock-stage wizard, the resources and the tools — then 2) p2gift://examples/default.md, the worked example, and 3) know the 7 image assets in the same folder — examples/assets/themed-base.webp, layout-a.webp, layout-b.webp, layout-c.webp, layout-3choices.webp, final_print_artwork.png, copychar.png — as presentation links: fetch one only when you need to show it to the user or check a mockup; the text resources carry the rules, so you do not need to read the images to learn the flow. Then send the skills briefer as your first reply — the Connected line, the skills listed in telegram style (p2gift — the order wizard; p2gift-order-lookup — status later), then the How to Start hint ending with the usage prompt; the worked example's 'Reference — skills briefer' section is the exact shape. The wizard: the server holds the session; you hold only the session_id. Start with start_session (Stage 1) once the pitch candidates are drafted locally from the user's source. Each stage locks before the next opens — approve_pitch (the pitch fit-checks against the catalog surfaces; on the lock you receive the product page URL for the user's pick — never present your own gift list or link), select_gift (the user's pasted pick message), approve_layout (returns ARTWORK_SPECS), approve_artwork (the user-approved file, parked as-is), set_order_details (quantity + delivery address, never invented), prepare_checkout (the signed link; the user pays on the store page — this store's OAuth gate is off, so Stripe's email + payment collection is the signing; the card never passes through you). Then poll get_order_status for the store's confirmation, and know lookup_order + the p2gift-order-lookup skill for later status checks. Never invent pitch wording, quantity, recipient, or price.",
           },
         }],
       });

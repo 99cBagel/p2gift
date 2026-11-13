@@ -11,6 +11,17 @@ For: the connected Agent. Read on connect, before any order.
 - The flow is a **lock-stage wizard**: the server holds the session
   and the locks. You propose; the user approves; the server locks.
 
+## On connect — reply with the briefer
+
+- Your first reply after connecting is the **skills briefer** —
+  the exact shape is the worked example's "Reference — skills
+  briefer" section. Read the example first, then send it.
+- Shape: the Connected ✓ line (live version + gate state), the
+  skills in telegram style — `p2gift` (the order wizard) and
+  `p2gift-order-lookup` (status later) — then "How to Start",
+  ending with the usage prompt as the message line:
+  "Use p2gift: extract key messages and generate custom gift ideas."
+
 ## Why
 
 - Custom gifting is hard to craft — idea, design, print, sourcing, all manual.
@@ -41,7 +52,7 @@ For: the connected Agent. Read on connect, before any order.
 - `gift_item` = gift / gift item — the item the pitch prints on.
 - `themed_base_image` = Themed-Base Image — the source base for the layout design: the design is applied on it to make clean mockups. The server feeds it at the gift lock.
 - `layout_options` = Print Layout Design Options — A, B, or C.
-- `final_print_artwork` = Final Print Artwork — print-ready PNG: transparent background, single color, no logo, one file, under 15 MB. File-checked at the artwork lock; the visual check is the user's artwork approval.
+- `final_print_artwork` = Final Print Artwork — print-ready PNG: transparent background, single color, no logo, one file, under 15 MB. Not file-checked: the server parks the file as-is at the artwork lock; the visual check is the user's artwork approval, and any issue is settled with the operator manually.
 - `ARTWORK_SPECS` = the print specs the server issues at the layout lock, for the locked gift\_item + print\_layout\_design. The Final Print Artwork is rendered to them.
 - `session_id` = the wizard session, issued by `start_session`. Every 🔧 carries it.
 - `Lead_Time` = each gift item's own lead time. Expected delivery date = order date + the picked item's `Lead_Time`.
@@ -52,7 +63,7 @@ For: the connected Agent. Read on connect, before any order.
 | --- | --- | --- | --- |
 | 1 | Intake | 🖥️ extract pitch → 🔧 `start_session` | SOURCE\_LOADED |
 | 2 | Pitch | user picks/edits a pitch option → 🔧 `approve_pitch` → 📩 product page URL | 🔒 PITCH\_LOCKED |
-| 3 | Gift | user taps Pick on the product page, pastes "I pick N" → 🔧 `select_gift` → 📩 `layout_options` + themed-base image | 🔒 gift locked |
+| 3 | Gift | user taps Pick on the product page, pastes the page's pick message ("I pick N — …") → 🔧 `select_gift` → 📩 `layout_options` + themed-base image | 🔒 gift locked |
 | 4 | Layouts | 🖥️ render the 3 layout mockups — one per `layout_options` entry — on the themed-base image → user picks → 🔧 `approve_layout` → 📩 ARTWORK\_SPECS | 🔒 layout · 📍 ARTWORK\_SPECS |
 | 5 | Artwork | 🖥️ render the artwork per ARTWORK\_SPECS → user approves → 🔧 `approve_artwork` with the file | 🔒 ARTWORK\_LOCKED |
 | 6 | Order | 🔧 `set_order_details` — qty + recipient, from the user only | — |
@@ -112,9 +123,9 @@ Rules of the wizard:
 | --- | --- |
 | `start_session` | Opens a wizard session with your extracted pitch candidates → 📩 `session_id`, 📍 SOURCE\_LOADED. |
 | `approve_pitch` | Locks the user's picked/edited pitch\_text → 📩 the product page URL. Rail: the pitch is fit-checked against the catalog surfaces; a pitch that fits nothing comes back with the reason — re-extract or re-condense and resubmit. |
-| `select_gift` | Locks the gift item from the user's pasted pick ("I pick N") → 📩 `layout_options` + the themed-base image for the layout stage. |
+| `select_gift` | Locks the gift item from the user's pasted pick message ("I pick N — …") → 📩 `layout_options` + the themed-base image for the layout stage. |
 | `approve_layout` | Locks the picked Print Layout Design (A/B/C) → 📩 ARTWORK\_SPECS for the locked gift + layout. |
-| `approve_artwork` | Submits your locally rendered Final Print Artwork file → file rail (PNG only, under 15 MB, transparent background, single color) → locks it. Fail → the reasons; fix and resubmit. |
+| `approve_artwork` | Submits your locally rendered Final Print Artwork file → the server parks it as-is and locks it. The ARTWORK_SPECS are advisory — no automated file check; issues are settled with the operator manually. |
 | `set_order_details` | Records qty + recipient exactly as the user gave them. |
 | `prepare_checkout` | Builds the cart from the locked session — item, artwork, qty, and the catalog price read server-side — and returns the signed prefilled checkout link (\~15 min). The buyer pays on the store page (gate off — Stripe's payment is the signing). |
 | `get_order_status` | Stage 8: this session's order state from the store (webhook-settled). Poll until paid / expired / failed. |
