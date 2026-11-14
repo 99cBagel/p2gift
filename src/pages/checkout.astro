@@ -226,20 +226,23 @@ const lockedLines =
         }),
       )
     : null;
-const prefill = agentPrefillRec
-  ? {
-      email: gateIdentity?.email ?? '',
-      name: agentPrefillRec.shipping.name,
-      line1: agentPrefillRec.shipping.line1,
-      line2: agentPrefillRec.shipping.line2 ?? '',
-      city: agentPrefillRec.shipping.city,
-      state: agentPrefillRec.shipping.state ?? '',
-      postal: agentPrefillRec.shipping.postal,
-      country: agentPrefillRec.shipping.country,
-    }
-  : rail === 'demo' && !isPost
-    ? DEMO_ADDRESS
-    : null;
+// A dialog-flow prefill locks no address (Stripe collects it at
+// payment): prefill then stays null and the form asks the buyer.
+const prefill =
+  agentPrefillRec && agentPrefillRec.shipping
+    ? {
+        email: gateIdentity?.email ?? '',
+        name: agentPrefillRec.shipping.name,
+        line1: agentPrefillRec.shipping.line1,
+        line2: agentPrefillRec.shipping.line2 ?? '',
+        city: agentPrefillRec.shipping.city,
+        state: agentPrefillRec.shipping.state ?? '',
+        postal: agentPrefillRec.shipping.postal,
+        country: agentPrefillRec.shipping.country,
+      }
+    : rail === 'demo' && !isPost
+      ? DEMO_ADDRESS
+      : null;
 const addr = {
   email: fld('email') || (prefill?.email ?? ''),
   name: fld('name') || (prefill?.name ?? ''),
@@ -447,8 +450,9 @@ const hasErrors = errors.length > 0;
     </p>
     {agentPrefillRec && (
       <p class="mb-6 rounded-md border border-line bg-white/60 px-3 py-2 text-sm">
-        Prepared by your agent — the delivery address is filled in from your order, and your
-        approved Final Print Artwork is attached to the gift. Please add your email and payment to finish.
+        {agentPrefillRec.shipping
+          ? 'Prepared by your agent — the delivery address is filled in from your order, and your approved Final Print Artwork is attached to the gift. Please add your email and payment to finish.'
+          : 'Prepared by your agent — your approved Final Print Artwork is attached to the gift. Please add your email, delivery address and payment to finish.'}
       </p>
     )}
     {agentPrefillRec && gateIdentity && lockedLines && (
@@ -463,10 +467,14 @@ const hasErrors = errors.length > 0;
           ))}
         </ul>
         <p class="mt-1">
-          Items total {formatPrice(agentPrefillRec.totalCents, currency)} · Ship to{' '}
-          {agentPrefillRec.shipping.name}, {agentPrefillRec.shipping.line1},{' '}
-          {agentPrefillRec.shipping.city}, {agentPrefillRec.shipping.postal},{' '}
-          {agentPrefillRec.shipping.country}
+          Items total {formatPrice(agentPrefillRec.totalCents, currency)}
+          {agentPrefillRec.shipping && (
+            <Fragment>
+              {' '}· Ship to {agentPrefillRec.shipping.name}, {agentPrefillRec.shipping.line1},{' '}
+              {agentPrefillRec.shipping.city}, {agentPrefillRec.shipping.postal},{' '}
+              {agentPrefillRec.shipping.country}
+            </Fragment>
+          )}
         </p>
         <p class="mt-1 text-muted">
           Signed in as {gateIdentity.email ?? gateIdentity.userId} ({gateIdentity.provider}).

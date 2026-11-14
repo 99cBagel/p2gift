@@ -106,6 +106,16 @@ export function createStripeProvider(
             },
           })),
         }),
+        // No rates offered (shipping off) but the goods still ship: collect
+        // the delivery address alone — the webhook maps it onto the order.
+        ...(!params.shipping && params.collectAddressCountries?.length && {
+          shipping_address_collection: {
+            allowed_countries: stripeAllowedCountries(
+              params.collectAddressCountries,
+              false,
+            ) as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[],
+          },
+        }),
       });
       if (!session.url) {
         throw new Error('Stripe did not return a checkout URL');

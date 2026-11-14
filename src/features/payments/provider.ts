@@ -57,6 +57,14 @@ export interface CreateCheckoutParams {
     shipmentWeightGrams?: number | null;
   };
   /**
+   * Collect a delivery address on the hosted page WITHOUT offering rates —
+   * for checkouts whose shipping is off (no charge) but which still ship
+   * physical goods: the address has to come from somewhere, and the hosted
+   * page is where the buyer already types. Only hosted-page adapters that
+   * support address collection read it; the rest ignore it.
+   */
+  collectAddressCountries?: string[];
+  /**
    * Set when the in-app step has ALREADY collected an address and a chosen rate
    * (Lightning, OpenNode, Demo). Adapters charge and snapshot exactly this instead
    * of guessing from an unselected list — picking `options[0]` was how the demo

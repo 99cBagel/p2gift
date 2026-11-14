@@ -484,6 +484,11 @@ export const POST: APIRoute = async ({ request, cookies, url, redirect }) => {
       // so inventory remains held until its verified expiry/failure webhook.
       cancelUrl,
       shipping,
+      // Shipping off → no rates to offer, but the goods still ship: Stripe
+      // collects the delivery address on its page (the store operates
+      // US-only; when shipping zones are configured, the shipping path
+      // above governs the collection instead).
+      collectAddressCountries: shipping ? undefined : ['US'],
       allowPromotionCodes: settings.discountsEnabled ?? cfg.discounts.enabled,
       automaticTax: settings.taxEnabled ?? cfg.tax.enabled,
       orderItemsJson: JSON.stringify(
@@ -988,6 +993,9 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
       successUrl: `${origin}/order/${accessToken}`,
       cancelUrl: `${origin}/`,
       shipping: method === 'stripe' ? shipping : undefined,
+      // Shipping off → Stripe still collects the delivery address (see the
+      // form path). US-only, matching the store's operating country.
+      collectAddressCountries: method === 'stripe' && !shipping ? ['US'] : undefined,
       ...(chosen &&
         shipTo && {
           selectedShipping: {

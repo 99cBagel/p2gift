@@ -1,12 +1,13 @@
 /**
  * Agent-prefilled carts (migration 0041). The MCP prepare_checkout
- * module validates an order's shape — cart contents against the live
- * catalog, and the Final Print Artwork against the 2-layer artwork
- * rules — and only then writes a prefill_carts row. The human opens
- * /cart/prefill/<token>; that route sets the cart cookie from the row
- * and this module supplies the rest of the handoff: the shipping
- * address the checkout page pre-fills, and the artwork file that is
- * attached to the order item when checkout settles.
+ * module builds the cart from the wizard session's locked row and
+ * writes a prefill_carts row. The human opens /cart/prefill/<token>;
+ * that route sets the cart cookie from the row and this module
+ * supplies the rest of the handoff: the shipping address the
+ * checkout page pre-fills (null when the session locked none — the
+ * flex-menu dialog collects no address; Stripe collects it at
+ * payment instead), and the artwork file that is attached to the
+ * order item when checkout settles.
  */
 import type { D1Database } from '@cloudflare/workers-types';
 import type { ReservationItem } from './reservations.ts';
@@ -34,7 +35,7 @@ export interface PrefillRecord {
   artworkKey: string | null;
   artworkName: string | null;
   artworkSize: number | null;
-  shipping: PrefillShipping;
+  shipping: PrefillShipping | null;
   totalCents: number;
   status: string;
   expiresAt: string;
@@ -46,7 +47,7 @@ interface PrefillRow {
   artwork_key: string | null;
   artwork_name: string | null;
   artwork_size: number | null;
-  shipping: string;
+  shipping: string | null;
   total_cents: number;
   status: string;
   expires_at: string;
@@ -71,7 +72,7 @@ export async function getOpenPrefill(db: D1Database, token: string): Promise<Pre
       artworkKey: row.artwork_key,
       artworkName: row.artwork_name,
       artworkSize: row.artwork_size,
-      shipping: JSON.parse(row.shipping) as PrefillShipping,
+      shipping: row.shipping ? (JSON.parse(row.shipping) as PrefillShipping) : null,
       totalCents: row.total_cents,
       status: row.status,
       expiresAt: row.expires_at,
