@@ -85,7 +85,7 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
     return { rejected: true, stage: "cart", reasons: [`Only ${stock} of ${item.name} in stock — the quantity ${qty} cannot be filled.`] };
   }
   const total = unitPrice * qty;
-  const shipping = JSON.parse(row.shipping);
+  const shipping = row.shipping ? JSON.parse(row.shipping) : null;
 
   const token = newPrefillToken();
   const lines = [{ product_public_id: product.public_id, variant_public_id: variant?.public_id ?? null, qty, product_id: product.id }];
@@ -101,7 +101,10 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
       row.artwork_key,
       row.artwork_name ?? "final-print-artwork.png",
       row.artwork_size,
-      row.shipping,
+      // prefill_carts.shipping is NOT NULL (migration 0041): a session
+      // with no locked address stores the JSON literal null, which
+      // every reader parses back to null.
+      row.shipping ?? "null",
       total,
       customer?.userId ?? authProps?.userId ?? null,
       row.id,
