@@ -25,7 +25,7 @@ To start, pick one:
 - External links are **view reference only** — the user views the page, but clicks in the dialog.
 - **Open input goes in the chat input field** (pitch wording); files come via attach.
 - The **pitch locks verbatim** as typed or picked. No fit check, no reshape step.
-- **No order info is asked in the dialog.** Address and payment are entered on the store page at # Check Out.
+- **No order info is asked in the dialog.** Quantity is set on the cart page; address and payment are entered on the store page at # Check Out.
 - The run's **final message is # Order Status**. No wrap-up after it.
 
 ## Stages
@@ -38,7 +38,7 @@ To start, pick one:
 4. **# Pick A Gift** — show the product page as view only (https://p2gift.keeg.uk/) and the gift list in the flex menu (numbered, with live prices; a Color menu follows for items with variants). The click calls `select_gift` (pick in the "I pick N — …" shape). The reply feeds layout_options, Lead_Time, and the themed_base_image. State: GIFT_LOCKED.
 5. **# Pick A Layout** — render 3 mockups locally, ON the themed_base_image (never bare text panels), labelled A / B / C; the pick calls `approve_layout`, which returns ARTWORK_SPECS. State: LAYOUT_LOCKED.
 6. **# Artwork** — render the Final Print Artwork locally per ARTWORK_SPECS and the locked layout; show a preview; [Approve artwork] calls `approve_artwork` — the server parks the file as-is, no check. State: ARTWORK_LOCKED.
-7. **# Check Out** — `prepare_checkout` (no order-details stage; quantity is 1 unless the user gave one in the dialog and it was locked with `set_order_details`); show the store checkout link + [🛒 Check Out]. The user pays on the store page — Stripe collects the email, delivery address and card there.
+7. **# Check Out** — `prepare_checkout` (no order-details stage; the cart starts at the locked quantity — 1 unless one was locked with `set_order_details` — and the buyer can change it on the cart page); show the store checkout link + [🛒 Check Out]. The user pays on the store page — Stripe collects the email, delivery address and card there.
 8. **# Order Status** — after payment, `get_order_status` confirms from the webhook. Final message, exactly:
    - Confirmed, #<order no.>
    - How to check the status: send /status here anytime, or open the order page from your confirmation email

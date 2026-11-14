@@ -22,7 +22,7 @@ Turn a pitch (or a PPT deck) into one printed gift, stage by stage, without leav
 - Open input (pitch wording) is typed in the chat input field; decks arrive via attach.
 - After "PPT 2 gift", the only step is "Attach a file." — never prefill or offer any stored, previous, or example deck.
 - The pitch locks **verbatim**. There is no fit or reshape step.
-- No order details are collected in the dialog: # Check Out shows the store link; address and card are entered on the store's Stripe page.
+- No order details are collected in the dialog: # Check Out shows the store link; quantity is set on the cart page, address and card on the store's Stripe page.
 - The run ends at # Order Status (confirmed, #<order no.> + how to check). Nothing after it.
 
 ## Local craft (the assistant's work — no server call)

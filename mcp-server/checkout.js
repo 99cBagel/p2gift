@@ -140,8 +140,8 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
       ship_to: shipping ? `${shipping.name}, ${shipping.city}, ${shipping.postal}, ${shipping.country}` : null,
     },
     instruction: gateOff
-      ? "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user sees the locked price and cart and pays on the store page — Stripe collects the email, the delivery address and the card there, and the payment is the signing (this store's OAuth gate is off); the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment."
-      : "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the locked price and cart, and pays on the store page — Stripe collects the email, the delivery address and the card there; the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment.",
+      ? "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the cart holds the locked gift (the user can change its quantity there) and the user pays on the store page — Stripe collects the email, the delivery address and the card there, and the payment is the signing (this store's OAuth gate is off); the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment."
+      : "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the cart with the locked gift (its quantity can be changed there), and pays on the store page — Stripe collects the email, the delivery address and the card there; the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment.",
     next: NEXT_STEP.CHECKOUT_ISSUED,
   };
 }
@@ -210,8 +210,7 @@ async function linkSessionOrder(env, row) {
         ship &&
         ship.name === lockedShip.name &&
         ship.line1 === lockedShip.line1 &&
-        ship.postal === lockedShip.postal &&
-        order.amount_total_cents === prefill.total_cents
+        ship.postal === lockedShip.postal
       ) {
         await patch(env, row.id, { order_public_id: order.public_id });
         return order;
@@ -220,21 +219,28 @@ async function linkSessionOrder(env, row) {
   }
   // Fallback: with no locked address to match (the dialog flow, or
   // store shipping disabled), the consumed prefill is single-use and
-  // bound to this session, so an order for the locked product at the
-  // prefill total, created in the window right after consumption and
-  // not claimed by another wizard session, is this session's order.
+  // bound to this session, so an order for the locked product, created
+  // in the window right after consumption and not claimed by another
+  // wizard session, is this session's order. An exact-total match is
+  // preferred; the buyer may have changed the quantity on the cart
+  // page, so the total is a preference, not a requirement.
   if (prefill.consumed_at) {
     const t0 = Date.parse(String(prefill.consumed_at).replace(" ", "T") + "Z");
     const t1 = t0 + 2 * 60 * 60 * 1000;
+    const eligible = [];
     for (const order of candidates.results ?? []) {
       const t = Date.parse(String(order.created_at).replace(" ", "T") + "Z");
-      if (order.amount_total_cents !== prefill.total_cents || !(t >= t0 && t <= t1)) continue;
+      if (!(t >= t0 && t <= t1)) continue;
       const claimed = await env.DB.prepare(
         "SELECT 1 AS one FROM wizard_sessions WHERE order_public_id = ? AND id != ?",
       )
         .bind(order.public_id, row.id)
         .first();
       if (claimed) continue;
+      eligible.push(order);
+    }
+    const order = eligible.find((o) => o.amount_total_cents === prefill.total_cents) ?? eligible[0];
+    if (order) {
       await patch(env, row.id, { order_public_id: order.public_id });
       return order;
     }
