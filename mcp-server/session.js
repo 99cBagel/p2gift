@@ -54,11 +54,12 @@ export const DEFAULT_ARTWORK_SPECS = [
   "- Font size: any",
 ].join("\n");
 
-const FORM_RANK = { short: 1, condensed: 2, full: 3 };
-
 // The pitch's form, from its structure — the settled condensed form
 // is 《title》 + noun phrases separated by 、; a pitch longer than a
-// short phrase with no condensed structure reads as full.
+// short phrase with no condensed structure reads as full. Recorded
+// on the session as information only: since the flex-menu dialog
+// (2026-11-14) the pitch locks verbatim — no fit rail judges it
+// against the catalog surfaces.
 export function pitchForm(text) {
   const t = String(text ?? "").trim();
   if (/《[^》]+》/.test(t) && t.includes("、")) return "condensed";
@@ -68,13 +69,6 @@ export function pitchForm(text) {
 
 export function hasPrintableText(text) {
   return /[\p{L}\p{N}]/u.test(String(text ?? ""));
-}
-
-// Per-item fit of a pitch form against the item's print surface.
-export function fitFor(form, surface) {
-  if (!FORM_RANK[form] || !FORM_RANK[surface]) return "no-fit";
-  if (FORM_RANK[form] <= FORM_RANK[surface]) return "fits";
-  return surface === "condensed" ? "needs-condensed" : "needs-short";
 }
 
 function parseJson(value, fallback) {
@@ -105,10 +99,10 @@ export function publicSession(row) {
 
 const NEXT_STEP = {
   SOURCE_LOADED: "approve_pitch — settle the pitch wording with the user, then lock it.",
-  PITCH_LOCKED: "select_gift — the user picks on the product page and pastes the pick message; pass it in.",
+  PITCH_LOCKED: "select_gift — the user picks in the dialog (the product page is view-only reference); pass the pick in the 'I pick N — …' shape.",
   GIFT_LOCKED: "approve_layout — render the layout mockups locally, the user picks one, lock it to receive ARTWORK_SPECS.",
   LAYOUT_LOCKED: "approve_artwork — render the Final Print Artwork locally to ARTWORK_SPECS, the user approves it, then submit the file.",
-  ARTWORK_LOCKED: "set_order_details — ask the user for quantity and the delivery name + address.",
+  ARTWORK_LOCKED: "prepare_checkout — issue the checkout link from the locked session. No order-details stage: quantity defaults to 1 unless set_order_details locked one; Stripe collects the delivery address at payment.",
   DETAILS_LOCKED: "prepare_checkout — issue the checkout link from the locked session.",
   CHECKOUT_ISSUED: "get_order_status — poll until the store's webhook settles the order.",
   ORDER_CONFIRMED: "Done — the confirmation has been delivered. Later checks use lookup_order.",
@@ -192,7 +186,7 @@ export async function startSession(env, { pitchCandidates, customer }) {
   };
 }
 
-// ── Stage 2 · Pitch lock + fit rail ─────────────────────────────────
+// ── Stage 2 · Pitch lock (verbatim — no fit rail) ───────────────────
 export async function approvePitch(env, { sessionId, pitchText }) {
   const { row, error } = await loadRow(env, sessionId);
   if (error) return { error };
@@ -211,58 +205,30 @@ export async function approvePitch(env, { sessionId, pitchText }) {
       next: "Re-extract the pitch from the source with the user and call approve_pitch again.",
     };
   }
+  // The pitch locks verbatim, exactly as the user settled it — no
+  // form check, no fit rail, no reshape step (flex-menu dialog,
+  // owner decision 2026-11-14). pitch_form is recorded as
+  // information only.
   const form = pitchForm(text);
-  const { items, source } = await loadInventory(env);
-  const fits = items.map((item) => ({ gift_item_id: item.id, gift_item: item.name, surface: item.surface, fit: fitFor(form, item.surface) }));
-  if (!fits.some((f) => f.fit === "fits")) {
-    const best = fits.some((f) => f.fit === "needs-condensed") ? "condensed" : "short";
-    return {
-      rejected: true,
-      stage: "pitch",
-      pitch_form: form,
-      fits,
-      inventory_source: source,
-      reasons: [
-        `No available gift item can bear the pitch in its ${form} form. ${
-          best === "condensed"
-            ? "Condense it to the settled form — 《title》 + noun phrases separated by 、 — and resubmit."
-            : "Reduce it to a short phrase and resubmit."
-        }`,
-      ],
-      next: "If the pitch cannot be shortened after honest attempts, use Live Connect: draft an email for the user to hello@keeg.uk with the session reference and the block.",
-    };
-  }
   await patch(env, row.id, { state: "PITCH_LOCKED", pitch_text: text, pitch_form: form });
   const { row: updated } = await loadRow(env, row.id);
-  return pitchLockedReply(env, updated, fits, source);
+  return pitchLockedReply(env, updated);
 }
 
-async function pitchLockedReply(env, row, fits, source) {
-  if (!fits) {
-    const inv = await loadInventory(env);
-    source = inv.source;
-    fits = inv.items.map((item) => ({
-      gift_item_id: item.id,
-      gift_item: item.name,
-      surface: item.surface,
-      fit: fitFor(row.pitch_form, item.surface),
-    }));
-  }
+async function pitchLockedReply(env, row) {
   return {
     session: publicSession(row),
     state: row.state,
     pitch_text: row.pitch_text,
     pitch_form: row.pitch_form,
-    fits,
-    inventory_source: source,
     product_page_url: PRODUCT_PAGE_URL,
     instruction:
-      "Pitch locked — it prints exactly as locked. Give the user the product_page_url: they pick a gift there and paste the pick message back into the chat. Then call select_gift with that pasted message. Do not present your own gift list or link — the pick happens on the product page.",
+      "Pitch locked — it prints exactly as locked. Show the user the product_page_url as view-only reference; the gift pick itself happens in the dialog. Then call select_gift with the pick in the shape \"I pick N — <gift item name>[, Color: <color>]\" formed from the user's tap.",
     next: NEXT_STEP.PITCH_LOCKED,
   };
 }
 
-// ── Stage 3 · Gift lock (from the pasted pick message) ──────────────
+// ── Stage 3 · Gift lock (from the dialog pick) ──────────────────────
 export async function selectGift(env, { sessionId, pick }) {
   const { row, error } = await loadRow(env, sessionId);
   if (error) return { error };
@@ -270,7 +236,7 @@ export async function selectGift(env, { sessionId, pick }) {
   if (!parsed) {
     return {
       error:
-        'select_gift needs the pick message the user pasted from the product page, in the shape "I pick N — <gift item name>[, Color: <color>] [<image url>]".',
+        'select_gift needs the pick in the shape "I pick N — <gift item name>[, Color: <color>]" — form it from the user\'s tap in the dialog.',
     };
   }
   if (row.state !== "PITCH_LOCKED") {
@@ -292,21 +258,12 @@ export async function selectGift(env, { sessionId, pick }) {
   const entry = page[parsed.n - 1];
   if (!entry) {
     return {
-      error: `Pick ${parsed.n} does not match the product page — it currently lists ${page.length} item(s). Ask the user to pick again on the product page.`,
+      error: `Pick ${parsed.n} does not match the gift list — it currently has ${page.length} item(s). Ask the user to pick again in the dialog.`,
       session: publicSession(row),
     };
   }
-  const fit = fitFor(row.pitch_form, entry.item.surface);
-  if (fit !== "fits") {
-    return {
-      rejected: true,
-      stage: "gift",
-      reasons: [
-        `The locked pitch (${row.pitch_form} form) does not fit ${entry.item.name} — its surface takes a ${entry.item.surface} pitch. Pick a fitting item on the product page, or start a new session with a ${entry.item.surface === "condensed" ? "condensed" : "short"} pitch.`,
-      ],
-      session: publicSession(row),
-    };
-  }
+  // No fit check: the locked pitch prints on the picked item
+  // verbatim (flex-menu dialog, owner decision 2026-11-14).
   let variantLabel = parsed.color;
   if (variantLabel) {
     const variant = await env.DB.prepare(
@@ -440,7 +397,7 @@ export async function approveArtwork(env, { sessionId, artworkBase64, artworkNam
     state: updated.state,
     artwork: { key, name, size: bytes.length },
     instruction:
-      "Artwork locked — parked exactly as submitted; the operator reviews it in Admin. Ask the user for the quantity and the delivery name + address, then call set_order_details.",
+      "Artwork locked — parked exactly as submitted; the operator reviews it in Admin. Call prepare_checkout to issue the checkout link — there is no order-details stage: Stripe collects the delivery address at payment.",
     next: NEXT_STEP.ARTWORK_LOCKED,
   };
 }

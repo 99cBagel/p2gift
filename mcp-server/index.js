@@ -3,17 +3,20 @@
 // notifications/initialized, tools/list, tools/call, resources/list,
 // resources/read, prompts/list, prompts/get, ping.
 //
-// v0.4.0 — the lock-stage wizard. Ordering runs through a server-side
-// session (D1 table wizard_sessions, migration 0046): the Agent holds
-// only a session_id, and each tool advances exactly one stage —
-// intake → pitch → gift → layout → artwork → order details →
+// v0.5.0 — the lock-stage wizard, flex-menu dialog. Ordering runs
+// through a server-side session (D1 table wizard_sessions, migration
+// 0046): the Agent holds only a session_id, and each tool advances
+// exactly one stage — intake → pitch → gift → layout → artwork →
 // checkout → confirmation (+ order lookup). The state machine lives
 // in session.js / checkout.js; locks are read from the session row,
-// never from Agent arguments. The Product Page is hidden from the
-// Agent: approve_pitch returns its URL for the human to pick on, and
-// the pick comes back as a pasted message. Artwork carries no
-// automated file rail — approve_artwork parks the file as-is and the
-// operator reviews it manually (owner decision, 2026-11-13).
+// never from Agent arguments. v0.5.0 (owner decisions, 2026-11-14):
+// the pitch locks verbatim — the fit rail is gone; there is no
+// order-details stage — prepare_checkout runs from the artwork
+// lock and Stripe collects the delivery address at payment; all
+// picks happen in the Muse dialog (flex menu) and the Product
+// Page is view-only reference. Artwork carries no automated file
+// rail — approve_artwork parks the file as-is and the operator
+// reviews it manually (owner decision, 2026-11-13).
 //
 // Auth (unchanged from v0.3.0): /mcp is OPEN — no token, no sign-in.
 // The agent works token-free; abuse control is rate limits (see
@@ -58,28 +61,39 @@ import {
   MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR,
 } from "./rate-limit.js";
 
-const SERVER = { name: "p2gift", version: "0.4.0" };
+const SERVER = { name: "p2gift", version: "0.5.0" };
 
 const STAGES = [
   "1 Intake — start_session records the pitch candidates from the source",
-  "2 Pitch — approve_pitch locks the exact pitch text (fit-checked against the catalog surfaces)",
-  "3 Gift — select_gift locks the gift from the user's pasted product-page pick",
+  "2 Pitch — approve_pitch locks the exact pitch text, verbatim (no fit check, no reshape)",
+  "3 Gift — select_gift locks the gift from the user's pick in the dialog (the product page is view-only)",
   "4 Layout — approve_layout locks the Print Layout Design and issues ARTWORK_SPECS",
   "5 Artwork — approve_artwork parks the user-approved Final Print Artwork (no automated check)",
-  "6 Order details — set_order_details locks quantity + delivery name/address",
-  "7 Checkout — prepare_checkout issues the signed checkout link; the user pays on the store page (this store's OAuth gate is off — Stripe's payment is the signing)",
+  "6 Order details (optional) — set_order_details locks quantity + delivery name/address when the user gave them; checkout does not require it",
+  "7 Checkout — prepare_checkout issues the signed checkout link; the user pays on the store page and Stripe collects email, delivery address and card (this store's OAuth gate is off — Stripe's payment is the signing)",
   "8 Confirmation — get_order_status reports the webhook-settled order back to the Agent",
   "9 Order lookup — lookup_order by order # + order token, no session needed",
 ];
 
 // Worked examples for few-shot (N-shot) learning, stored in R2 under
 // examples/. One Markdown file per example, slug-named; "default" is
-// Example 1 (xDrive PPT run). The same Markdown is rendered for humans
-// at /example/<slug> (HTML in a browser, raw Markdown with ?format=md).
-// Adding an example = add its files here and sync them to R2.
+// Example 1 (the flex-menu dialog, customer view) and "annotated" is
+// Example 2 (the same run with the server log lines). The same
+// Markdown is rendered for humans at /example/<slug> (HTML in a
+// browser, raw Markdown with ?format=md). Adding an example = add
+// its files here and sync them to R2.
 const EXAMPLE_FILES = [
-  { key: "examples/connect-prompt/default.md", mimeType: "text/markdown", name: "Connect Prompt — p2gift overview for the connected Agent", description: "Read first on connect: what p2gift (PPT-to-Gift) is, why it exists, the canonical terms, the lock-stage wizard (stages, tools, locks, the checkout rule), and Stages 8–9." },
-  { key: "examples/default.md", mimeType: "text/markdown", name: "Example 1 (default) — Muse Chat Log, xDrive PPT run (wizard)", description: "Default worked example, wizard run: PPT in, pitch locked, gift picked on the product page, layout lock issuing ARTWORK_SPECS, artwork lock, checkout from the locked session, Stage 8 confirmation, Stage 9 lookup." },
+  { key: "examples/connect-prompt/default.md", mimeType: "text/markdown", name: "Connect Prompt — p2gift overview for the connected Agent", description: "Read first on connect: what p2gift (PPT-to-Gift) is, the flex-menu dialog rules, the stages, the commands, the canonical terms, and the guardrails." },
+  { key: "examples/default.md", mimeType: "text/markdown", name: "Example 1 (default) — flex-menu dialog, clean (customer view)", description: "Default worked example: PPT in, pitch locked verbatim, gift + layout + artwork picked in the dialog, checkout link, Order Status. No tool lines — the run as the customer sees it." },
+  { key: "examples/annotated.md", mimeType: "text/markdown", name: "Example 2 — flex-menu dialog, annotated (server log)", description: "The same flex-menu run with the server-side log lines: tool calls, tool replies, local work, locks, session states." },
+  { key: "examples/assets/ex1-layout-a.webp", mimeType: "image/webp", name: "Example 1 asset — Layout A mockup", description: "Example 1: Layout A mockup on the Tumbler's themed-base image." },
+  { key: "examples/assets/ex1-layout-b.webp", mimeType: "image/webp", name: "Example 1 asset — Layout B mockup (picked)", description: "Example 1: Layout B mockup on the Tumbler's themed-base image — the picked layout." },
+  { key: "examples/assets/ex1-layout-c.webp", mimeType: "image/webp", name: "Example 1 asset — Layout C mockup", description: "Example 1: Layout C mockup on the Tumbler's themed-base image." },
+  { key: "examples/assets/ex1-artwork-preview.png", mimeType: "image/png", name: "Example 1 asset — Final Print Artwork preview", description: "Example 1: the approved Final Print Artwork (Layout B), previewed on black." },
+  { key: "examples/assets/ex2-layout-a.webp", mimeType: "image/webp", name: "Example 2 asset — Layout A mockup", description: "Example 2: Layout A mockup on the Tumbler's themed-base image." },
+  { key: "examples/assets/ex2-layout-b.webp", mimeType: "image/webp", name: "Example 2 asset — Layout B mockup", description: "Example 2: Layout B mockup on the Tumbler's themed-base image." },
+  { key: "examples/assets/ex2-layout-c.webp", mimeType: "image/webp", name: "Example 2 asset — Layout C mockup (picked)", description: "Example 2: Layout C mockup on the Tumbler's themed-base image — the picked layout." },
+  { key: "examples/assets/ex2-artwork-preview.png", mimeType: "image/png", name: "Example 2 asset — Final Print Artwork preview", description: "Example 2: the approved Final Print Artwork (Layout C), previewed on black." },
   { key: "examples/assets/themed-base.webp", mimeType: "image/webp", name: "Example asset — themed-base (Tumbler mockup)", description: "Stainless Tumbler mockup, white pitch text on matte black, no period." },
   { key: "examples/assets/layout-a.webp", mimeType: "image/webp", name: "Example asset — Layout A", description: "Layout A: centered, 3 lines, large." },
   { key: "examples/assets/layout-b.webp", mimeType: "image/webp", name: "Example asset — Layout B", description: "Layout B, chosen: small top line, rule, large name." },
@@ -143,7 +157,7 @@ const TOOLS = [
   },
   {
     name: "approve_pitch",
-    description: "Stage 2 (Pitch): lock the pitch wording the user settled. The pitch is fit-checked against the live catalog's print surfaces (full / condensed / short) before it locks — a pitch no available item can bear is rejected with the form to resubmit in. On the lock, returns product_page_url for the user's gift pick.",
+    description: "Stage 2 (Pitch): lock the pitch wording the user settled — verbatim, exactly as given. No fit check and no reshape: any wording with printable text locks. On the lock, returns product_page_url (view-only reference; the gift pick itself happens in the dialog).",
     inputSchema: {
       type: "object",
       properties: {
@@ -155,12 +169,12 @@ const TOOLS = [
   },
   {
     name: "select_gift",
-    description: "Stage 3 (Gift): lock the gift from the pick message the user pasted back from the product page — `I pick N — <gift item name>[, Color: <color>] [<image url>]`. The number maps to the product page's order; a pick whose surface cannot bear the locked pitch is rejected. On the lock it feeds back the item's layout_options and themed_base_image for the layout stage.",
+    description: "Stage 3 (Gift): lock the gift from the user's pick in the dialog, passed in the shape `I pick N — <gift item name>[, Color: <color>]` (the agent forms it from the user's tap). The number maps to the product page's order. On the lock it feeds back the item's layout_options and themed_base_image for the layout stage.",
     inputSchema: {
       type: "object",
       properties: {
         session_id: { type: "string" },
-        pick: { type: "string", description: "The user's pasted pick message, verbatim." },
+        pick: { type: "string", description: "The pick, in the shape \"I pick N — <gift item name>[, Color: <color>]\"." },
       },
       required: ["session_id", "pick"],
     },
@@ -192,7 +206,7 @@ const TOOLS = [
   },
   {
     name: "set_order_details",
-    description: "Stage 6 (Order details): lock the quantity and the delivery name + address, exactly as the user gave them — none may be invented.",
+    description: "Stage 6 (Order details, optional): lock a quantity (and delivery name + address) the user gave in the dialog, exactly as given — none may be invented. prepare_checkout does NOT require this stage: without it the quantity is 1 and Stripe collects the delivery address at payment.",
     inputSchema: {
       type: "object",
       properties: {
@@ -205,7 +219,7 @@ const TOOLS = [
   },
   {
     name: "prepare_checkout",
-    description: "Stage 7 (Checkout): build the checkout from the locked session — the agent supplies only the session_id; gift, variant, quantity, address, artwork, and price all come from the locked row and the live catalog. Returns checkout_url: a signed, single-use link expiring in about 15 minutes. The user opens it, sees the locked price and cart, and pays on the store page — Stripe collects the email and the card (this store's OAuth sign-in gate is off; the payment is the signing); the card never passes through the agent. An expired link is re-issued by calling again.",
+    description: "Stage 7 (Checkout): build the checkout from the locked session — the agent supplies only the session_id; gift, variant, quantity (1 unless set_order_details locked one), artwork, and price all come from the locked row and the live catalog. No address is collected by the agent — Stripe collects the email, the delivery address and the card on its page. Returns checkout_url: a signed, single-use link expiring in about 15 minutes. The user opens it, sees the locked price and cart, and pays on the store page (this store's OAuth sign-in gate is off; the payment is the signing); the card never passes through the agent. An expired link is re-issued by calling again.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string" } },
@@ -352,7 +366,7 @@ export async function handleMcpRequest(request, env, authProps) {
     payload = result(id, {
       prompts: [{
         name: "p2gift-connect",
-        description: "Connect to p2gift: read the connect prompt first, then the worked example, send the skills briefer, then open a wizard session with start_session.",
+        description: "Connect to p2gift: read the connect prompt first, then the worked examples, then reply with the # Select A Source stage (flex menu).",
       }],
     });
   } else if (method === "prompts/get") {
@@ -360,12 +374,12 @@ export async function handleMcpRequest(request, env, authProps) {
       payload = error(id, -32602, `Unknown prompt: ${params?.name}`);
     } else {
       payload = result(id, {
-        description: "Connect to p2gift: read the connect prompt first, then the worked example, send the skills briefer, then open a wizard session with start_session.",
+        description: "Connect to p2gift: read the connect prompt first, then the worked examples, then reply with the # Select A Source stage (flex menu).",
         messages: [{
           role: "user",
           content: {
             type: "text",
-            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://examples/connect-prompt/default.md — the connect prompt: what p2gift is, the canonical terms, the lock-stage wizard, the resources and the tools — then 2) p2gift://examples/default.md, the worked example, and 3) know the 7 image assets in the same folder — examples/assets/themed-base.webp, layout-a.webp, layout-b.webp, layout-c.webp, layout-3choices.webp, final_print_artwork.png, copychar.png — as presentation links: fetch one only when you need to show it to the user or check a mockup; the text resources carry the rules, so you do not need to read the images to learn the flow. Then send the skills briefer as your first reply — the Connected line, the skills listed in telegram style (p2gift — the order wizard; p2gift-order-lookup — status later), then the How to Start hint ending with the usage prompt; the worked example's 'Reference — skills briefer' section is the exact shape. The wizard: the server holds the session; you hold only the session_id. Start with start_session (Stage 1) once the pitch candidates are drafted locally from the user's source. Each stage locks before the next opens — approve_pitch (the pitch fit-checks against the catalog surfaces; on the lock you receive the product page URL for the user's pick — never present your own gift list or link), select_gift (the user's pasted pick message), approve_layout (returns ARTWORK_SPECS), approve_artwork (the user-approved file, parked as-is), set_order_details (quantity + delivery address, never invented), prepare_checkout (the signed link; the user pays on the store page — this store's OAuth gate is off, so Stripe's email + payment collection is the signing; the card never passes through you). Then poll get_order_status for the store's confirmation, and know lookup_order + the p2gift-order-lookup skill for later status checks. Never invent pitch wording, quantity, recipient, or price.",
+            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://examples/connect-prompt/default.md — the connect prompt: what p2gift is, the flex-menu dialog rules, the stages, the commands, the canonical terms, the guardrails — then 2) p2gift://examples/default.md (Example 1, the clean dialog) and p2gift://examples/annotated.md (Example 2, the same run with the server log lines). The image assets under examples/assets/ are presentation links: fetch one only when you need to show it to the user; the text resources carry the rules. Then send the connect prompt's first stage as your first reply: '# Select A Source' — the Connected line and the flex menu (PPT 2 gift · Pitch 2 gift · Remove this). The dialog: every stage reply is a # Stage Title plus a minimal telegram-style body; bounded picks are flex-menu taps in the dialog; links are view-only. The wizard behind it: the server holds the session; you hold only the session_id. Start with start_session once the pitch candidates are drafted locally from the user's source. Each stage locks before the next opens — approve_pitch (the pitch locks verbatim — no fit check, no reshape), select_gift (the pick formed from the user's tap, in the 'I pick N — …' shape), approve_layout (returns ARTWORK_SPECS), approve_artwork (the user-approved file, parked as-is), prepare_checkout (the signed link; no order-details stage — the user pays on the store page and Stripe collects the email, delivery address and card; this store's OAuth gate is off, so the payment is the signing; the card never passes through you). set_order_details stays available for a quantity the user gives in the dialog, but checkout never requires it. The run ends with the # Order Status message from get_order_status; lookup_order serves later status checks. Never invent pitch wording, quantity, recipient, or price.",
           },
         }],
       });
@@ -388,7 +402,7 @@ export async function handleMcpRequest(request, env, authProps) {
         stages: STAGES,
         inventory_source: inv.source,
         gift_items: inv.items.map((i) => ({ id: i.id, name: i.name, surface: i.surface, treatment: i.treatment ?? null, lead_time_days: i.lead_time_days ?? null })),
-        note: "The product page URL is issued by approve_pitch at the pitch lock — it is not listed here, and the agent never presents its own gift list or catalog link.",
+        note: "The product page URL is issued by approve_pitch at the pitch lock as view-only reference — the gift pick itself happens in the dialog, from the live items listed here.",
       }));
     } else if (name === "start_session") {
       payload = toolPayload(id, await startSession(env, { pitchCandidates: args.pitch_candidates, customer }));

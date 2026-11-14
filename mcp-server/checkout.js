@@ -1,20 +1,22 @@
 // Wizard checkout + confirmation + lookup (Stages 7–9).
 //
 // prepare_checkout(session_id) builds the cart from the LOCKED
-// session row — gift, variant, quantity, address, and the artwork
-// parked at the artwork lock — prices it from D1, writes the
-// prefill_carts row, and returns the signed checkout link. The only
-// identity check in the wizard sits inside this stage, in the
-// browser, at the store's OAuth gate (v0.3.0, unchanged). No
-// automated artwork check runs here: the artwork stage accepted the
-// file as-is (owner decision 2026-11-13), so checkout cannot reject
-// what that stage accepted.
+// session row — gift, variant, quantity (1 unless an order-details
+// lock set one), and the artwork parked at the artwork lock —
+// prices it from D1, writes the prefill_carts row, and returns the
+// signed checkout link. There is no order-details stage in the
+// flex-menu dialog (owner decision 2026-11-14): the delivery
+// address is collected by Stripe on its checkout page, never by
+// the agent. The only identity check in the wizard sits inside
+// this stage, in the browser, at the store's OAuth gate (v0.3.0,
+// unchanged). No automated artwork check runs here: the artwork
+// stage accepted the file as-is (owner decision 2026-11-13), so
+// checkout cannot reject what that stage accepted.
 //
 // Confirmation is pull, never push: get_order_status links the
 // session to its order through the prefill token (the checkout API
-// consumes the prefill for the order's own cart, and the order's
-// shipping snapshot equals the session's locked address), then reads
-// the orders table — which settles from the Stripe webhook only.
+// consumes the prefill for the order's own cart), then reads the
+// orders table — which settles from the Stripe webhook only.
 // The browser redirect is never proof of payment.
 
 import { loadRow, patch, sessionView, NEXT_STEP, SITE } from "./session.js";
@@ -43,7 +45,7 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
         session: sessionView(row),
       };
     }
-  } else if (row.state !== "DETAILS_LOCKED") {
+  } else if (row.state !== "DETAILS_LOCKED" && row.state !== "ARTWORK_LOCKED") {
     return {
       error: `Session ${row.id} is at ${row.state}; prepare_checkout is not the open step.`,
       session: sessionView(row),
@@ -76,9 +78,11 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
     unitPrice = variant.price_cents;
     stock = variant.stock;
   }
-  const qty = row.quantity;
+  // No order-details stage in the dialog: quantity is whatever an
+  // optional set_order_details lock set, else 1.
+  const qty = row.quantity ?? 1;
   if (!Number.isInteger(qty) || qty < 1 || qty > stock) {
-    return { rejected: true, stage: "cart", reasons: [`Only ${stock} of ${item.name} in stock — the locked quantity ${qty} cannot be filled.`] };
+    return { rejected: true, stage: "cart", reasons: [`Only ${stock} of ${item.name} in stock — the quantity ${qty} cannot be filled.`] };
   }
   const total = unitPrice * qty;
   const shipping = JSON.parse(row.shipping);
@@ -130,11 +134,11 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
       quantity: qty,
       total_cents: total,
       currency: "usd",
-      ship_to: `${shipping.name}, ${shipping.city}, ${shipping.postal}, ${shipping.country}`,
+      ship_to: shipping ? `${shipping.name}, ${shipping.city}, ${shipping.postal}, ${shipping.country}` : null,
     },
     instruction: gateOff
-      ? "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user sees the locked price and cart and pays on the store page — Stripe collects the email and the card there, and the payment is the signing (this store's OAuth gate is off); the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment."
-      : "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the locked price and cart, and pays on the store page; the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment.",
+      ? "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user sees the locked price and cart and pays on the store page — Stripe collects the email, the delivery address and the card there, and the payment is the signing (this store's OAuth gate is off); the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment."
+      : "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the locked price and cart, and pays on the store page — Stripe collects the email, the delivery address and the card there; the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment.",
     next: NEXT_STEP.CHECKOUT_ISSUED,
   };
 }
@@ -170,9 +174,11 @@ async function orderByPublicId(env, publicId) {
 
 // Link a session to its order: an order belongs to this session when
 // it was created from the session's prefill — the checkout API
-// applies the prefill to the order's own cart and the order's ship
-// snapshot equals the locked address. Matched on the gift product +
-// recipient snapshot + amount the session locked.
+// applies the prefill to the order's own cart. When the session
+// locked an address (the optional order-details path), the primary
+// match is the gift product + recipient snapshot + amount; with no
+// locked address (the dialog flow — Stripe collects it), the
+// fallback below carries the match.
 async function linkSessionOrder(env, row) {
   if (row.order_public_id) return orderByPublicId(env, row.order_public_id);
   if (!row.prefill_token) return null;
@@ -188,31 +194,32 @@ async function linkSessionOrder(env, row) {
   )
     .bind(row.created_at, row.product_id)
     .all();
-  const lockedShip = JSON.parse(row.shipping);
-  for (const order of candidates.results ?? []) {
-    let ship = null;
-    try {
-      ship = JSON.parse(order.ship_address);
-    } catch {
-      continue;
-    }
-    if (
-      ship &&
-      ship.name === lockedShip.name &&
-      ship.line1 === lockedShip.line1 &&
-      ship.postal === lockedShip.postal &&
-      order.amount_total_cents === prefill.total_cents
-    ) {
-      await patch(env, row.id, { order_public_id: order.public_id });
-      return order;
+  const lockedShip = row.shipping ? JSON.parse(row.shipping) : null;
+  if (lockedShip) {
+    for (const order of candidates.results ?? []) {
+      let ship = null;
+      try {
+        ship = JSON.parse(order.ship_address);
+      } catch {
+        continue;
+      }
+      if (
+        ship &&
+        ship.name === lockedShip.name &&
+        ship.line1 === lockedShip.line1 &&
+        ship.postal === lockedShip.postal &&
+        order.amount_total_cents === prefill.total_cents
+      ) {
+        await patch(env, row.id, { order_public_id: order.public_id });
+        return order;
+      }
     }
   }
-  // Fallback: with store shipping disabled, checkout collects no
-  // address, so the order carries no ship_address to match. The
-  // consumed prefill is single-use and bound to this session, so an
-  // order for the locked product at the prefill total, created in
-  // the window right after consumption and not claimed by another
-  // wizard session, is this session's order.
+  // Fallback: with no locked address to match (the dialog flow, or
+  // store shipping disabled), the consumed prefill is single-use and
+  // bound to this session, so an order for the locked product at the
+  // prefill total, created in the window right after consumption and
+  // not claimed by another wizard session, is this session's order.
   if (prefill.consumed_at) {
     const t0 = Date.parse(String(prefill.consumed_at).replace(" ", "T") + "Z");
     const t1 = t0 + 2 * 60 * 60 * 1000;
