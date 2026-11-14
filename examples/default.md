@@ -1,252 +1,84 @@
-# Muse Chat Log — Example 1 (wizard)
+# p2gift — Example 1 (clean dialog)
 
-Use Case: PPT as the Input Source
-
-This run follows the lock-stage wizard. 🔧 = tool call (Agent → MCP),
-📩 = tool reply (MCP → Agent), 🖥️ = the Assistant's local work (no
-server call), 🔒 = lock set, 📍 = session state. Tool lines are what
-the server sees, so the user wouldn't normally see them. Each stage:
-propose → approve → lock. Locks move forward only.
-
-(user)
-```
-Custom connect to p2gift: https://p2gift.keeg.uk/mcp.....
-```
-
-(assistant)
-```
-📍 CONNECTED
-
-Connected ✓ — p2gift restored and live (10 wizard tools; /health: v0.4.0, gate off). Saved as a reusable skill ✓.
-
-Skills, telegram style:
-
-p2gift — order wizard: pitch or PPT in → pitch lock → gift pick → mockups on the themed-base image → artwork → checkout → confirmation
-p2gift-order-lookup — status later: order # + token → stage + expected delivery date
-
-How to Start 
-
-- attach a PPT, or give the pitch as text
-- message: "Use p2gift: extract key messages and generate custom gift ideas." ✄
-```
-
-(user)
-
-```
-[file: xDRIVE_PPT_certification.pptx]
-use p2gift: prepare a gift to match with this presentation PPT
-```
-
-(assistant)
-
-```
-🖥️ Extract_Pitch(source_loaded) — local: the deck is read and the
-   pitch options are drafted on the Assistant's side
-🔧 start_session(pitch_candidates) 📩 = (session_id)
-📍 SOURCE_LOADED
-
-Here's the p2gift run for this deck: 6 slides, English, about
-xDrive's AFM System certification. AgileFlex Manufacturing, lean
-and rapid turnaround, US military-centric certifications across
-Taiwan, San Diego and Mexico, for DoD prime contractors. San Diego
-is pitched as the certification hub.
-
-Pitch options:
-
-1. xDrive AFM Certification — AgileFlex Manufacturing
-2. San Diego UAV Certification Hub
-3. Certified Fast. Built Lean.
-
-Which one is your pick? You can edit the wording.
-```
-
-(user)
-
-```
-xDrive AFM Certification — AgileFlex Manufacturing
-```
-
-(assistant)
-
-```
-🔧 approve_pitch(session_id, pitch_text) 📩 = (product_page_URL)
-🔒 pitch · 📍 PITCH_LOCKED
-
-Pitch locked. Next: pick the gift. [view product_page_URL]
-Tap Pick on an item and paste the message back here.
-```
-
-(user)
-
-```
-I pick 1 — Personalized Custom Print in USA Tumbler 20oz Stainless Steel Double Wall Coffee Cup with Lid & Straw Insulated Tumbler with Colorful Text Logo Photo https://p2gift.keeg.uk/images/catalog/B0FJLSKF6V/themed-base.png
-```
-
-(assistant)
-
-```
-🔧 select_gift(session_id, pick)
-📩 = (Layout_Options + Themed-Base Image)
-🔒 gift · 📍 GIFT_LOCKED
-🖥️ Generate_LayoutOptions — local: the 3 layout mockups are
-   rendered on the Assistant's side — one per layout option —
-   on the themed-base image, from the locked pitch
-📍 LAYOUT_OPTIONS
-
-Gift is confirmed. Pitch of xDrive AFM Certification — AgileFlex Manufacturing is confirmed.
-
-Next is to select from the three print layout designs:
-
-A — Centered, 3 lines, large
-xDrive AFM / Certification / AgileFlex Manufacturing
-
-B — Hierarchy, small top line + rule + large name
-xDrive AFM Certification / — / AgileFlex Manufacturing, large
-
-C — 2 lines, with the em dash kept
-xDrive AFM Certification — / AgileFlex Manufacturing
-
-Here are selections (A left, B middle, C right), which layout?
-```
-
-![Print Layout 3 choices](./assets/layout-3choices.webp) (from left to right )
-
-(user)
-
-```
-B
-```
-
-(assistant)
-
-```
-🔧 approve_layout(session_id, "B")
-📩 = (Artwork_Specs)
-🔒 layout=B · 📍 ARTWORK_SPECS
-
-Layout B confirmed:
-
-xDrive AFM Certification
-——————
-AgileFlex
-Manufacturing
-
-Proceed with Stainless Tumbler (20 oz), Layout B?
-```
-
-(user)
-
-```
-yes
-```
-
-(assistant)
-
-```
-🖥️ gen [final_print_artwork.png] per ARTWORK_SPECS — local: the
-   artwork file is rendered on the Assistant's side, to the specs
-   the server issued at the layout lock
-
-Final Print Artwork:
-[final_print_artwork.png]
-White text, transparent background (shown on dark so the white
-ink is visible), Layout B. Does this look good?
-```
-
-![Final Print Artwork, Layout B, white text on transparent](./assets/final_print_artwork.png)
-
-(user)
-
-```
-yes
-```
-
-(assistant)
-
-```
-🔧 approve_artwork(session_id,[final_print_artwork.png])
-🔒 artwork · 📍 ARTWORK_LOCKED
-
-Two things before checkout:
-
-How many?
-Deliver to whom and where?
-```
-
-(user)
-
-```
-One
-[recipient name], [street address]
-```
-
-(assistant)
-
-```
-🔧 set_order_details(session_id, qty=1, ship_to)
-🔧 prepare_checkout(session_id)
-📍 CHECKOUT_ISSUED
-
-Cart prefilled from the locked session — Stainless Tumbler
-(20 oz) × 1, Layout B, your approved artwork. Price: $13.99,
-read from the catalog by the server.
-
-[Proceed to check out](https://p2gift.keeg.uk/cart/prefill/…) —
-open it within about 15 minutes. Inside checkout, in your
-browser: you see the locked price and cart, and pay on the
-store page — Stripe collects your email and card, and the
-payment is the signing (this store's sign-in gate is off).
-Your card never passes through me.
-```
-
-(user)
-
-```
-Checked out.
-```
-
-(assistant)
-
-```
-🔧 get_order_status(session_id) → paid (confirmed by the store's
-   payment webhook, not by the checkout page)
-🔒 order_id · 📍 ORDER_CONFIRMED
-
-Order confirmed — fed back to me by the store:
-
-1. Payment confirmation (Stripe): order #…, $13.99, paid by
-   card. Your order confirmation email is also on its way.
-2. Expected delivery date: [order date + {gift_id} Lead_Time]
-   — computed by the store from this gift item's lead time;
-   once your order ships, the carrier's date replaces it.
-3. Order lookup: you can look up the status of this order any
-   time — here is the related skill: p2gift-order-lookup
-   (order # + your order token).
-
-Done — order placed. Your pitch is on its gift, on its way to
-the recipient.
-```
-
-— Stage 9, on a later day —
-
-(user)
-
-```
-where is my order?
-```
-
-(assistant)
-
-```
-🔧 lookup_order(order_id, order_token) — via the
-   p2gift-order-lookup skill
-
-Status of order #…:
-- Paid ✓ (Stripe payment confirmed)
-- Being prepared — your gift is in the print-and-ship chain
-- Expected delivery date: [date from the confirmation]
-
-Full detail, any time: [your order page]
-```
+The customer view: stage titles + minimal lines, all picks in the flex menu, links view only. No tool lines.
 
 ---
+
+(user) Custom connect to p2gift: https://p2gift.keeg.uk/mcp. Connect, save it as a reusable skill.
+
+(assistant)
+# Select A Source
+
+Connected ✓ — p2gift is live (10 wizard tools; checkout gate off). Saved as a reusable skill ✓.
+To start, pick one:
+[flex menu] PPT 2 gift · Pitch 2 gift · Remove this
+
+(user) PPT 2 gift
+
+(assistant)
+# PPT 2 Gift
+
+Attach a file.
+
+(user) [attaches Mockup_ISO13485_Consulting.pptx]
+
+(assistant)
+# Pitch
+
+Deck: Mockup ISO Consulting — ISO 13485 for medical device companies.
+Tap 1–3, or type 4 (the headline: "A personalized path to a quality management system that passes audits and works in daily operations") — or your own wording — in the input field:
+[flex menu] 1 · 《ISO 13485 Consulting》、Personalized Path、Passes Audits、Works in Daily Operations · 2 · 《Mockup ISO Consulting》、Assess、Plan、Build、Verify、Certify · 3 · A Partner in Compliance
+
+(user) ISO 13485--Your Partner in Compliance
+
+(assistant)
+# Pick A Gift
+
+🔒 Pitch: "ISO 13485--Your Partner in Compliance"
+View only: https://p2gift.keeg.uk/ — pick here:
+[flex menu] 1 · Tumbler 20oz — $0.50 · 2 · 5-Pack Cups 12oz — $0.55
+
+(user) 1 · Tumbler 20oz — $0.50
+
+(assistant)
+# Pick A Layout
+
+🔒 Tumbler 20oz — $0.50
+
+A — Centered, 3 lines, large
+![Layout A](./assets/ex1-layout-a.webp)
+
+B — Small top line + rule + large name
+![Layout B](./assets/ex1-layout-b.webp)
+
+C — 2 lines
+![Layout C](./assets/ex1-layout-c.webp)
+
+[flex menu] Layout A · Layout B · Layout C
+
+(user) Layout B
+
+(assistant)
+# Artwork
+
+🔒 Layout B — print file (PNG, transparent, single color):
+![Artwork preview](./assets/ex1-artwork-preview.png)
+
+[flex menu] Approve artwork
+
+(user) Approve artwork
+
+(assistant)
+# Check Out
+
+🔒 Artwork parked — Tumbler 20oz, Layout B, $0.50.
+Checkout: https://p2gift.keeg.uk/ — qty, address and card are entered on the store page; nothing is asked here.
+[flex menu] 🛒 Check Out
+
+(user) 🛒 Check Out
+
+(assistant)
+# Order Status
+
+- Confirmed, #xxxxx
+- How to check the status: send /status here anytime, or open the order page from your confirmation email
