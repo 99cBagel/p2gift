@@ -228,7 +228,7 @@ const TOOLS = [
   },
   {
     name: "get_order_status",
-    description: "Stage 8 (Confirmation): read this session's order state from the store. Payment truth is the webhook-settled orders table — the browser checkout page is never proof. On paid, returns the three-part confirmation (Stripe payment confirmation; expected delivery date = order date + the gift item's Lead_Time; the p2gift-order-lookup pointer with order # + token) and locks the session ORDER_CONFIRMED.",
+    description: "Stage 8 (Confirmation): read this session's order state from the store — with a server-side wait: while no settled order is linked, the call re-checks every 5 s (up to 3 repeats, ~15 s) and returns the moment the store confirms payment, the checkout link expires unpaid, or the order is refunded; call it again to keep waiting. Payment truth is the webhook-settled orders table — the browser checkout page is never proof. On paid, returns the three-part confirmation (Stripe payment confirmation; expected delivery date = order date + the gift item's Lead_Time; the p2gift-order-lookup pointer with order # + token) and locks the session ORDER_CONFIRMED.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string" } },

@@ -140,8 +140,8 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
       ship_to: shipping ? `${shipping.name}, ${shipping.city}, ${shipping.postal}, ${shipping.country}` : null,
     },
     instruction: gateOff
-      ? "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the cart holds the locked gift (the user can change its quantity there) and the user pays on the store page — Stripe collects the email, the delivery address and the card there, and the payment is the signing (this store's OAuth gate is off); the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment."
-      : "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the cart with the locked gift (its quantity can be changed there), and pays on the store page — Stripe collects the email, the delivery address and the card there; the card never passes through the agent. Then poll get_order_status until the store confirms — the checkout page itself is not proof of payment.",
+      ? "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the cart holds the locked gift (the user can change its quantity there) and the user pays on the store page — Stripe collects the email, the delivery address and the card there, and the payment is the signing (this store's OAuth gate is off); the card never passes through the agent. Then call get_order_status — it waits server-side and returns the moment the store confirms; call it again to keep waiting — the checkout page itself is not proof of payment."
+      : "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the cart with the locked gift (its quantity can be changed there), and pays on the store page — Stripe collects the email, the delivery address and the card there; the card never passes through the agent. Then call get_order_status — it waits server-side and returns the moment the store confirms; call it again to keep waiting — the checkout page itself is not proof of payment.",
     next: NEXT_STEP.CHECKOUT_ISSUED,
   };
 }
@@ -284,6 +284,17 @@ function orderView(order) {
 }
 
 // ── Stage 8 · Confirmation ──────────────────────────────────────────
+// Server-side wait (user, 2026-11-14): while no settled order is
+// linked, the call itself waits — it re-checks every WAIT_INTERVAL_MS,
+// up to WAIT_REPEATS repeats (~15 s per call), and returns the moment
+// the order settles, the checkout link expires unpaid, or the order
+// turns out refunded. Short holds survive flaky connections; the
+// agent re-calls to keep waiting, and every return is complete for
+// that call, so a dropped connection loses nothing.
+const WAIT_INTERVAL_MS = 5000;
+const WAIT_REPEATS = 3;
+const waitSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function getOrderStatus(env, { sessionId }) {
   const { row, error } = await loadRow(env, sessionId);
   if (error) return { error };
@@ -294,14 +305,53 @@ export async function getOrderStatus(env, { sessionId }) {
       next: NEXT_STEP[row.state] ?? null,
     };
   }
+  let current = row;
+  for (let attempt = 0; ; attempt++) {
+    const outcome = await evaluateOrderStatus(env, current);
+    if (outcome.terminal || attempt >= WAIT_REPEATS) return outcome.result;
+    await waitSleep(WAIT_INTERVAL_MS);
+    const fresh = await loadRow(env, sessionId);
+    if (!fresh.error) current = fresh.row;
+  }
+}
+
+/** One status evaluation; `terminal` = no benefit in waiting longer. */
+async function evaluateOrderStatus(env, row) {
   const order = await linkSessionOrder(env, row);
   if (!order) {
+    // Link expired unpaid is a terminal wait outcome: the buyer needs
+    // a fresh link, not more waiting.
+    if (row.prefill_token) {
+      const prefill = await env.DB.prepare(
+        "SELECT status, expires_at FROM prefill_carts WHERE token = ?",
+      )
+        .bind(row.prefill_token)
+        .first();
+      if (prefill && prefill.status === "open") {
+        const now = await env.DB.prepare("SELECT datetime('now') AS now").first();
+        if (now && String(prefill.expires_at) <= String(now.now)) {
+          return {
+            terminal: true,
+            result: {
+              session: sessionView(row),
+              state: row.state,
+              order_status: "expired",
+              instruction:
+                "The checkout link expired unpaid. Call prepare_checkout to re-issue a fresh link from the locked session, show it to the user, then call get_order_status again to resume waiting.",
+            },
+          };
+        }
+      }
+    }
     return {
-      session: sessionView(row),
-      state: row.state,
-      order_status: "not_created",
-      instruction:
-        "No order has been created from this session's checkout link yet. If the link expired, call prepare_checkout again to re-issue it from the locked session. Never report a payment the store has not confirmed.",
+      terminal: false,
+      result: {
+        session: sessionView(row),
+        state: row.state,
+        order_status: "not_created",
+        instruction:
+          "No order has been created from this session's checkout link yet — this call already waited server-side (5 s checks, up to 3 repeats). Call get_order_status again to keep waiting. Never report a payment the store has not confirmed.",
+      },
     };
   }
   const view = orderView(order);
@@ -311,45 +361,51 @@ export async function getOrderStatus(env, { sessionId }) {
   const { row: updated } = await loadRow(env, row.id);
   if (order.status === "paid") {
     return {
-      session: sessionView(updated),
-      state: updated.state,
-      confirmation: {
-        payment: {
-          headline: "Here is payment confirmation:",
-          order_id: view.order_id,
-          amount_cents: view.amount_cents,
-          currency: view.currency,
-          paid_at: view.paid_at,
-          method: "Card",
-          stripe_session_ref: view.stripe_session_ref,
+      terminal: true,
+      result: {
+        session: sessionView(updated),
+        state: updated.state,
+        confirmation: {
+          payment: {
+            headline: "Here is payment confirmation:",
+            order_id: view.order_id,
+            amount_cents: view.amount_cents,
+            currency: view.currency,
+            paid_at: view.paid_at,
+            method: "Card",
+            stripe_session_ref: view.stripe_session_ref,
+          },
+          delivery: {
+            headline: `Here is expected delivery date ${view.expected_delivery_date ?? "(the gift item has no Lead_Time set yet)"}`,
+            expected_delivery_date: view.expected_delivery_date,
+            lead_time_days: view.lead_time_days,
+            basis: "order date + the gift item's Lead_Time; the carrier's date replaces it once the order ships",
+          },
+          lookup: {
+            headline: "You can lookup status of this order, here is the related skill: p2gift-order-lookup",
+            skill: "p2gift-order-lookup",
+            order_id: view.order_id,
+            order_token: view.order_token,
+            order_page_url: view.order_page_url,
+          },
         },
-        delivery: {
-          headline: `Here is expected delivery date ${view.expected_delivery_date ?? "(the gift item has no Lead_Time set yet)"}`,
-          expected_delivery_date: view.expected_delivery_date,
-          lead_time_days: view.lead_time_days,
-          basis: "order date + the gift item's Lead_Time; the carrier's date replaces it once the order ships",
-        },
-        lookup: {
-          headline: "You can lookup status of this order, here is the related skill: p2gift-order-lookup",
-          skill: "p2gift-order-lookup",
-          order_id: view.order_id,
-          order_token: view.order_token,
-          order_page_url: view.order_page_url,
-        },
+        instruction:
+          "Report the confirmation to the user in the three parts above. The customer also receives the store's order confirmation email.",
       },
-      instruction:
-        "Report the confirmation to the user in the three parts above. The customer also receives the store's order confirmation email.",
     };
   }
   return {
-    session: sessionView(updated),
-    state: updated.state,
-    order_status: order.status,
-    order: view,
-    instruction:
-      order.status === "refunded"
-        ? "This order was refunded. Report that plainly; do not present it as a live order."
-        : "The order exists but the store has not confirmed payment. Keep polling with backoff, or report 'not confirmed yet' — never claim success from the checkout page.",
+    terminal: order.status === "refunded",
+    result: {
+      session: sessionView(updated),
+      state: updated.state,
+      order_status: order.status,
+      order: view,
+      instruction:
+        order.status === "refunded"
+          ? "This order was refunded. Report that plainly; do not present it as a live order."
+          : "The order exists but the store has not confirmed payment. Call get_order_status again to keep waiting — never claim success from the checkout page.",
+    },
   };
 }
 
