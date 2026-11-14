@@ -108,13 +108,14 @@ export const OPTIONS: APIRoute = () => new Response(null, { status: 204, headers
 // ---------------------------------------------------------------------------
 // Checkout gate (v0.3.0): a checkout that carries an OPEN agent prefill
 // may only proceed once the human has signed in in this browser
-// (features/auth/checkoutGate.ts), and only for exactly the cart and
-// price the agent locked. A manual checkout (no prefill) is untouched.
+// (features/auth/checkoutGate.ts), and only for the gift the agent
+// selected (the quantity is the buyer's to change). A manual checkout
+// (no prefill) is untouched.
 // ---------------------------------------------------------------------------
 
 const GATE_SIGNIN_URL = '/checkout/signin?next=/cart';
-const GATE_LOCK_MESSAGE =
-  'This checkout was locked by your agent (cart and price). If anything was changed, ask your agent to prepare the checkout again.';
+const PREFILL_CART_MESSAGE =
+  'This checkout is for the gift your agent selected — only its quantity can be changed here. To buy something different, ask your agent to prepare a new checkout.';
 
 async function gateBlockFor(
   request: Request,
@@ -125,7 +126,7 @@ async function gateBlockFor(
   const rec = await getOpenPrefill(env.DB, prefillToken);
   if (!rec) return { rec: null, block: null };
   // Gate OFF (runtime setting): no sign-in required — the rec still
-  // drives the locked cart/price snapshot check below.
+  // drives the selected-gift check below.
   if (!(await checkoutGateEnabled(env))) return { rec, block: null };
   const identity = await gateIdentityForRequest(request, env);
   if (identity) return { rec, block: null };
@@ -143,32 +144,42 @@ async function gateBlockFor(
   return { rec, block };
 }
 
-/** Null when the lines are exactly the prefill's locked cart + total. */
-async function prefillSnapshotMismatch(rec: PrefillRecord, lines: LineDraft[]): Promise<string | null> {
-  const expected = new Map<string, number>();
+/**
+ * Null when every line is the prefill's selected gift at its locked
+ * unit price. The QUANTITY is the buyer's to change on the cart page
+ * (the charged total is recomputed from these D1-priced lines, so a
+ * qty change never trusts a client-supplied price) — what stays
+ * locked is WHICH product and variant the cart holds, and that it
+ * holds nothing else: a different product, a swapped variant, or
+ * priced extras on the line are a different purchase than the one
+ * the agent prepared.
+ */
+async function prefillCartMismatch(rec: PrefillRecord, lines: LineDraft[]): Promise<string | null> {
+  const locked = new Map<string, number>();
   for (const line of rec.lines) {
+    const product = await env.DB.prepare('SELECT id, price_cents FROM products WHERE public_id = ?')
+      .bind(line.product_public_id)
+      .first<{ id: number; price_cents: number }>();
+    if (!product) return PREFILL_CART_MESSAGE;
     let variantId: number | null = null;
+    let unitPriceCents = product.price_cents;
     if (line.variant_public_id) {
-      const row = await env.DB.prepare('SELECT id FROM product_variants WHERE public_id = ?')
+      const variant = await env.DB.prepare(
+        'SELECT id, price_cents FROM product_variants WHERE public_id = ?',
+      )
         .bind(line.variant_public_id)
-        .first<{ id: number }>();
-      variantId = row?.id ?? -1; // unresolvable variant can never match
+        .first<{ id: number; price_cents: number }>();
+      if (!variant) return PREFILL_CART_MESSAGE;
+      variantId = variant.id;
+      unitPriceCents = variant.price_cents;
     }
-    const key = `${line.product_id ?? ''}|${variantId ?? ''}`;
-    expected.set(key, (expected.get(key) ?? 0) + line.qty);
+    locked.set(`${product.id}|${variantId ?? ''}`, unitPriceCents);
   }
-  const actual = new Map<string, number>();
-  let totalCents = 0;
+  if (lines.length === 0) return PREFILL_CART_MESSAGE;
   for (const line of lines) {
-    const key = `${line.product.id}|${line.variantId ?? ''}`;
-    actual.set(key, (actual.get(key) ?? 0) + line.qty);
-    totalCents += line.unitPriceCents * line.qty;
+    const unit = locked.get(`${line.product.id}|${line.variantId ?? ''}`);
+    if (unit === undefined || line.unitPriceCents !== unit) return PREFILL_CART_MESSAGE;
   }
-  if (expected.size !== actual.size) return GATE_LOCK_MESSAGE;
-  for (const [key, qty] of expected) {
-    if (actual.get(key) !== qty) return GATE_LOCK_MESSAGE;
-  }
-  if (totalCents !== rec.totalCents) return GATE_LOCK_MESSAGE;
   return null;
 }
 
@@ -273,12 +284,13 @@ export const POST: APIRoute = async ({ request, cookies, url, redirect }) => {
 
   // Checkout gate (cart checkouts only — express buy-now is a separate
   // manual purchase): an open agent prefill needs the browser sign-in
-  // first, and the cart must still be exactly the locked one.
+  // first, and the cart must still hold only the selected gift (its
+  // quantity is the buyer's to change).
   if (!productPublicId) {
     const gate = await gateBlockFor(request, cookies.get('prefill')?.value, 'form');
     if (gate.block) return gate.block;
     if (gate.rec) {
-      const mismatch = await prefillSnapshotMismatch(gate.rec, lines);
+      const mismatch = await prefillCartMismatch(gate.rec, lines);
       if (mismatch) return redirect(`/cart?error=${encodeURIComponent(mismatch)}`, 303);
     }
   }
@@ -713,10 +725,10 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
 
   const storeCurrency = cfg.currency;
   const subtotalCents = lines.reduce((s, l) => s + l.unitPriceCents * l.qty, 0);
-  // Checkout gate, second half: the requested cart must be exactly the
-  // agent's locked cart and price.
+  // Checkout gate, second half: the requested lines must be only the
+  // agent's selected gift at its locked unit price (quantity is free).
   if (gate.rec) {
-    const mismatch = await prefillSnapshotMismatch(gate.rec, lines);
+    const mismatch = await prefillCartMismatch(gate.rec, lines);
     if (mismatch) return cjson({ error: mismatch }, 409);
   }
   const shipCalc = createConfigRatesCalculator(effectiveShipping);
