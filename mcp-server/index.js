@@ -19,6 +19,10 @@
 // the same text rides in the initialize instructions so every
 // connecting agent receives it without fetching. Install is
 // copy-only — no reusable skill is issued or saved.
+// v0.6.1 (2026-11-15): the dialog rounds are streamlined —
+// # Select A Source takes an attachment with no menu, and # Pitch
+// + # Pick A Product merge into # Pitch and Product (one round,
+// two submits back-to-back). The tool surface is unchanged.
 //
 // Auth (unchanged from v0.3.0): /mcp is OPEN — no token, no sign-in.
 // The agent works token-free; abuse control is rate limits (see
@@ -62,16 +66,15 @@ import {
   MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR,
 } from "./rate-limit.js";
 
-const SERVER = { name: "p2gift", version: "0.6.0" };
+const SERVER = { name: "p2gift", version: "0.6.1" };
 
 const STAGES = [
-  "1 Select A Source — the run opens here; the user picks PPT 2 gift or Pitch 2 gift",
-  "2 Pitch — submit locks the exact pitch text, verbatim (no fit check, no reshape)",
-  "3 Product — submit locks the product from the user's pick in the dialog, under its service-issued name",
-  "4 Layout — submit locks the Print Layout Design and issues ARTWORK_SPECS",
-  "5 Artwork — submit files the user-approved Final_Print_Artwork (parked as-is, no automated check)",
-  "6 Check Out — pay issues the signed payment link; quantity, address and card are entered on the linked page",
-  "7 Order Status — status reports the settled order; later checks take the order no. + token, no session needed",
+  "1 Select A Source — the run opens here; the user attaches a pitch deck (PPT/PDF or photo), no menu",
+  "2 Pitch and Product — in one round: submit locks the pitch verbatim, then the product from the user's tap, under its service-issued name",
+  "3 Layout — submit locks the Print Layout Design and issues ARTWORK_SPECS",
+  "4 Artwork — submit files the user-approved Final_Print_Artwork (parked as-is, no automated check)",
+  "5 Check Out — pay issues the signed payment link; quantity, address and card are entered on the linked page",
+  "6 Order Status — status reports the settled order; later checks take the order no. + token, no session needed",
 ];
 
 // The MCP-to-Agent prompt upon connect. The same text is returned by
@@ -80,7 +83,7 @@ const STAGES = [
 // prompts. It points at the example — the service's only description.
 const CONNECT_TEXT = [
   "You are connected to the p2gift Intake Service. Read the example first — p2gift://examples/default.md — it is the service's only description: one worked intake, the three practices (chat sequence, layout, artwork), and the if-stuck lines. Follow it exactly. Install is copy-only: save nothing, make no reusable skill.",
-  "Reply first with # Select A Source — the Connected line and the flex menu (PPT 2 gift · Pitch 2 gift · Remove this). Then follow the stages in order, one input per stage. start opens the session. submit carries each stage's input: the pitch (locks verbatim, exactly as typed or tapped), the product (named exactly as the service names it — the service issues the pick strings), the layout pick, the artwork file. pay issues the payment link: quantity, address and card are entered on the linked page — ask for none of them in the dialog. status closes the run with the # Order Status message, and serves later checks with the order no. + token.",
+  "Reply first with # Select A Source — the Connected line and one instruction: attach a pitch deck (PPT/PDF or photo). No menu at this stage. Then # Pitch and Product: present the pitch candidates and the items in one message; the user settles the pitch and taps a product in one round. start opens the session. submit carries each input: the pitch (locks verbatim, exactly as typed or tapped), then the product (named exactly as the service names it — the service issues the pick strings), back-to-back; then the layout pick and the artwork file, one stage each. pay issues the payment link: quantity, address and card are entered on the linked page — ask for none of them in the dialog. status closes the run with the # Order Status message, and serves later checks with the order no. + token.",
   "Never invent pitch wording, quantity, recipient, or price.",
 ].join("\n\n");
 
@@ -289,7 +292,7 @@ export async function handleMcpRequest(request, env, authProps) {
     payload = result(id, {
       prompts: [{
         name: "p2gift-connect",
-        description: "Connect to the p2gift Intake Service: read the example — the service's only description — then reply with the # Select A Source stage (flex menu).",
+        description: "Connect to the p2gift Intake Service: read the example — the service's only description — then reply with the # Select A Source stage.",
       }],
     });
   } else if (method === "prompts/get") {
@@ -297,7 +300,7 @@ export async function handleMcpRequest(request, env, authProps) {
       payload = error(id, -32602, `Unknown prompt: ${params?.name}`);
     } else {
       payload = result(id, {
-        description: "Connect to the p2gift Intake Service: read the example — the service's only description — then reply with the # Select A Source stage (flex menu).",
+        description: "Connect to the p2gift Intake Service: read the example — the service's only description — then reply with the # Select A Source stage.",
         messages: [{
           role: "user",
           content: { type: "text", text: CONNECT_TEXT },

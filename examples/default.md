@@ -1,8 +1,8 @@
 # p2gift — Example
 
-One intake, followed stage by stage. Every stage: a # title + minimal lines; every bounded pick is a flex-menu tap in the dialog. Links are view only.
+One intake, followed stage by stage. Every stage: a # title + minimal lines; bounded picks are flex-menu taps in the dialog, and the source is simply attached. Links are view only.
 
-**Follow this example exactly: open at Stage 1 — # Select A Source — and submit one input per stage, in order. Never open at the product pick.** "Remove this" → disconnect, confirm in one line, stop.
+**Follow this example exactly: open at # Select A Source and follow the stages in order. Never open at the product pick.** "Remove this" → disconnect, confirm in one line, stop.
 
 ---
 
@@ -18,27 +18,21 @@ Start with "Select A Source" session immediately after the initial Connect sessi
 ```
 # Select A Source
 
-Connected ✓ — p2gift Intake Service.
-To start, pick one:
-[flex menu] PPT 2 gift · Pitch 2 gift · Remove this
+Connected ✓ — p2gift Intake Service. To start, attach a pitch deck (PPT/PDF or photo).
 ```
-(user) PPT 2 gift
-
-(assistant)
-```
-# PPT 2 Gift
-
-Attach a pitch deck (PPT/PDF) — or paste a link.
 
 (user) [attaches Mockup_ISO13485_Consulting.pptx]
-```
+
 (assistant)
 ```
-# Pitch
+# Pitch and Product
 
 Deck: Mockup ISO Consulting — ISO 13485 for medical device companies.
-Tap 1–3, or type 4 (the headline: "A personalized path to a quality management system that passes audits and works in daily operations") — or your own wording — in the input field:
+Pitch — tap 1–3, or type your own wording in the input field:
 [flex menu] 1 · 《ISO 13485 Consulting》、Personalized Path、Passes Audits、Works in Daily Operations · 2 · 《Mockup ISO Consulting》、Assess、Plan、Build、Verify、Certify · 3 · A Partner in Compliance
+
+Product — tap one:
+[flex menu] 1 · Tumbler 20oz — $0.50 · 2 · 5-Pack Cups 12oz — $0.55
 ```
 
 (user)
@@ -46,23 +40,16 @@ Tap 1–3, or type 4 (the headline: "A personalized path to a quality management
 Your ISO 13485--Partner--in Compliance
 ```
 
-(assistant)
-```
-# Pick A Product
-
-🔒 Pitch: "Your ISO 13485--Partner--in Compliance"
-Pick here:
-[flex menu] 1 · Tumbler 20oz — $0.50 · 2 · 5-Pack Cups 12oz — $0.55
-```
 (user)
 ```
 1 · Tumbler 20oz — $0.50
 ```
+
 (assistant)
 ```
 # Pick A Layout
 
-🔒 Tumbler 20oz — $0.50
+🔒 Pitch: "Your ISO 13485--Partner--in Compliance" · Tumbler 20oz — $0.50
 
 A — Centered, 3 lines, large
 ![Layout A](./assets/ex1-layout-a.webp)
@@ -116,7 +103,7 @@ Approve artwork
 
 Three practices — the whole method:
 
-1. **Chat sequence** — one input per stage, in order; locks move forward only. The pitch locks verbatim, exactly as typed or tapped. Products are named exactly as the service names them — never add descriptions or taglines.
+1. **Chat sequence** — one round per stage, in order; at # Pitch and Product the pitch and the product settle in the same round — submit the pitch, then the product, back-to-back. Locks move forward only. The pitch locks verbatim, exactly as typed or tapped. Products are named exactly as the service names them — never add descriptions or taglines.
 2. **Layout** — render the 3 options ON the product's base image, the exact pitch text composited onto the product (never an image-generation model, never bare text panels). Fixed text box per product + layout, so the first render fits; render A / B / C in parallel. While the user reads the pitch candidates, fetch the base images so rendering starts the moment the product locks.
 3. **Artwork** — the picked layout re-rendered at print size in the same step: PNG only, transparent background, single color, text only, 3 MB or smaller, hard edges (no grey halo).
 
