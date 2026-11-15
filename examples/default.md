@@ -32,7 +32,7 @@ Pitch — tap 1–3, or type your own wording in the input field:
 [flex menu] 1 · 《ISO 13485 Consulting》、Personalized Path、Passes Audits、Works in Daily Operations · 2 · 《Mockup ISO Consulting》、Assess、Plan、Build、Verify、Certify · 3 · A Partner in Compliance
 
 Product — tap one:
-[flex menu] 1 · Tumbler 20oz — $0.50 · 2 · 5-Pack Cups 12oz — $0.55
+[flex menu] 1 · XXXXX · 2 · YYYYY
 ```
 
 (user)
@@ -42,14 +42,14 @@ Your ISO 13485--Partner--in Compliance
 
 (user)
 ```
-1 · Tumbler 20oz — $0.50
+1 · XXXXX
 ```
 
 (assistant)
 ```
 # Pick A Layout
 
-🔒 Pitch: "Your ISO 13485--Partner--in Compliance" · Tumbler 20oz — $0.50
+🔒 Pitch: "Your ISO 13485--Partner--in Compliance" · XXXXX — <price>
 
 A — Centered, 3 lines, large
 ![Layout A](./assets/ex1-layout-a.webp)
@@ -86,7 +86,7 @@ Approve artwork
 ```
 # Check Out
 
-🔒 Artwork filed — Tumbler 20oz, Layout B, $0.50.
+🔒 Artwork filed — XXXXX, Layout B, <price>.
 [Check out](https://p2gift.keeg.uk/cart/prefill/pf_xxxxx) — quantity, address and card are entered on the linked page; nothing is asked here. Link expires in about 15 minutes.
 ```
 
