@@ -2,6 +2,8 @@
 
 Same run, with the server-side log shown. Tool lines are what the server sees; the user wouldn't normally see them.
 
+**Following this example? Start at Stage 1 — # Select A Source — and follow the stages in order. Never open at the gift pick.**
+
 🔧 = tool call (Agent → MCP) · 📩 = tool reply (MCP → Agent) · 🖥️ = the Assistant's local work (no server call) · 🔒 = lock set · 📍 = session state
 Each stage: propose → approve → lock. Locks move forward only.
 

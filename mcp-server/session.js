@@ -129,7 +129,7 @@ const NEXT_STEP = {
 
 function wrongState(row, tool) {
   return {
-    error: `Session ${row.id} is at ${row.state}; ${tool} is not the open step.`,
+    error: `Session ${row.id} is at ${row.state}; ${tool} is not the open step. A run opens at Stage 1 (# Select A Source) and advances one stage per lock — follow the open step only.`,
     session: publicSession(row),
     next: NEXT_STEP[row.state] ?? null,
   };
@@ -252,7 +252,7 @@ async function pitchLockedReply(env, row) {
     pitch_form: row.pitch_form,
     product_page_url: PRODUCT_PAGE_URL,
     instruction:
-      "Pitch locked — it prints exactly as locked. Show the user the product_page_url as view-only reference; the gift pick itself happens in the dialog. Then call select_gift with the pick in the shape \"I pick N — <gift item name>[, Color: <color>]\" formed from the user's tap.",
+      "Pitch locked — it prints exactly as locked. Show the user the product_page_url as view-only reference; the gift pick itself happens in the dialog. Then call select_gift with the pick in the shape \"I pick N — <gift item name>[, Color: <color>]\" formed from the user's tap — the name must be the item's exact server name (the pick string issued in service_info); the server rejects any other name.",
     next: NEXT_STEP.PITCH_LOCKED,
   };
 }
@@ -291,6 +291,20 @@ export async function selectGift(env, { sessionId, pick }) {
       session: publicSession(row),
     };
   }
+  // Guard rail: the pick must carry the item's server-issued name exactly
+  // (words, not punctuation). An invented or decorated name — e.g. a gift
+  // presented with an added description — is rejected with the correct
+  // pick string, so the dialog self-corrects.
+  if (!sameItemName(parsed.name, entry.item.name)) {
+    return {
+      rejected: true,
+      stage: "gift",
+      reasons: [
+        `"${parsed.name}" is not the server's name for item ${parsed.n}. Gift items are presented and passed under the server's names only — never add descriptions or taglines. Use exactly: "I pick ${parsed.n} — ${entry.item.name}".`,
+      ],
+      session: publicSession(row),
+    };
+  }
   // No fit check: the locked pitch prints on the picked item
   // verbatim (flex-menu dialog, owner decision 2026-11-14).
   let variantLabel = parsed.color;
@@ -326,7 +340,17 @@ function parsePick(pick) {
   if (!m) return null;
   const rest = m[2].replace(/https?:\/\/\S+\s*$/, "").replace(/\.+$/, "").trim();
   const colorMatch = rest.match(/,\s*Color:\s*([^,]+)$/i);
-  return { n: Number(m[1]), name: rest, color: colorMatch ? colorMatch[1].trim() : null };
+  const name = colorMatch ? rest.slice(0, colorMatch.index).trim() : rest;
+  return { n: Number(m[1]), name, color: colorMatch ? colorMatch[1].trim() : null };
+}
+
+// Guard rail: a pick is valid only under the item's server-issued name —
+// gift items are presented and passed under the server's names only, never
+// with added descriptions or taglines. The comparison tolerates case and
+// punctuation; the words themselves must be the server's.
+function sameItemName(a, b) {
+  const norm = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return norm(a) !== "" && norm(a) === norm(b);
 }
 
 function giftLockedReply(env, row, item, product) {

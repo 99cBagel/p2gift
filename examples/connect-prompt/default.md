@@ -20,6 +20,8 @@ To start, pick one:
 
 ## Dialog rules (flex menu)
 
+- **Every run opens at Stage 1 — # Select A Source** — a fresh connect, a later "order a gift", or "follow the example" alike. Never open at the gift pick: the gift is Stage 3, after the pitch locks.
+- **Gift items are presented and passed under the server's names only** — never add descriptions or taglines (e.g. "one personal gift"). select_gift rejects a pick whose name is not the server's name for that item; service_info issues the exact pick string for each item — use it.
 - Every stage reply: a **# Stage Title** + a minimal telegram-style body. Nothing more.
 - **Flex menu for every bounded pick.** All selector clicks happen in the Muse dialog.
 - External links are **view reference only** — the user views the page, but clicks in the dialog.

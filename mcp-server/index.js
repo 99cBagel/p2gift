@@ -169,7 +169,7 @@ const TOOLS = [
   },
   {
     name: "select_gift",
-    description: "Stage 3 (Gift): lock the gift from the user's pick in the dialog, passed in the shape `I pick N — <gift item name>[, Color: <color>]` (the agent forms it from the user's tap). The number maps to the product page's order. On the lock it feeds back the item's layout_options and themed_base_image for the layout stage.",
+    description: "Stage 3 (Gift): lock the gift from the user's pick in the dialog, passed in the shape `I pick N — <gift item name>[, Color: <color>]` (the agent forms it from the user's tap). The name must be the item's exact server name — use the pick string issued for the item in service_info; the server rejects invented or decorated names. The number maps to the product page's order. On the lock it feeds back the item's layout_options and themed_base_image for the layout stage.",
     inputSchema: {
       type: "object",
       properties: {
@@ -401,7 +401,7 @@ export async function handleMcpRequest(request, env, authProps) {
         flow: "lock-stage wizard",
         stages: STAGES,
         inventory_source: inv.source,
-        gift_items: inv.items.map((i) => ({ id: i.id, name: i.name, surface: i.surface, treatment: i.treatment ?? null, lead_time_days: i.lead_time_days ?? null })),
+        gift_items: inv.items.map((i, idx) => ({ id: i.id, name: i.name, pick: `I pick ${idx + 1} — ${i.name}`, surface: i.surface, treatment: i.treatment ?? null, lead_time_days: i.lead_time_days ?? null })),
         note: "The product page URL is issued by approve_pitch at the pitch lock as view-only reference — the gift pick itself happens in the dialog, from the live items listed here.",
       }));
     } else if (name === "start_session") {

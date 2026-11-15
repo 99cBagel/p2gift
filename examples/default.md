@@ -2,6 +2,8 @@
 
 The customer view: stage titles + minimal lines, all picks in the flex menu, links view only. No tool lines.
 
+**Following this example? Start at Stage 1 — # Select A Source — and follow the stages in order. Never open at the gift pick.**
+
 ---
 
 (user) Custom connect to p2gift: https://p2gift.keeg.uk/mcp. Connect, save it as a reusable skill.
