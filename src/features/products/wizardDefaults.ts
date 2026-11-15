@@ -5,11 +5,11 @@
  * new products) and any reader that needs the effective value.
  *
  * Layout letters are stable keys: picks, locks and ARTWORK_SPECS
- * refer to the letter (A/B/C), never to the description text.
+ * refer to the letter (X/Y/Z), never to the description text.
  */
-export const DEFAULT_LAYOUT_OPTIONS = `A — Centered, 3 lines, large
-B — Hierarchy, small top line + rule + large name
-C — 2 lines, with the em dash kept`;
+export const DEFAULT_LAYOUT_OPTIONS = `X — Centered, 3 lines, large
+Y — Hierarchy, small top line + rule + large name
+Z — 2 lines, with the em dash kept`;
 
 /**
  * The print specs handed to the Assistant at the layout lock.

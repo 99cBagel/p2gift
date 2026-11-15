@@ -60,9 +60,9 @@ function newSessionId() {
 // plain JS and cannot import the TS module. Keep the two in sync;
 // the product row's own text wins whenever it is set.
 export const DEFAULT_LAYOUT_OPTIONS = [
-  "A — Centered, 3 lines, large",
-  "B — Hierarchy, small top line + rule + large name",
-  "C — 2 lines, with the em dash kept",
+  "X — Centered, 3 lines, large",
+  "Y — Hierarchy, small top line + rule + large name",
+  "Z — 2 lines, with the em dash kept",
 ].join("\n");
 export const DEFAULT_ARTWORK_SPECS = [
   "Print artwork for this item — render to these specs:",
@@ -118,7 +118,7 @@ export function publicSession(row) {
 
 const NEXT_STEP = {
   SOURCE_LOADED: "submit (stage: pitch) — settle the pitch wording with the user, then lock it.",
-  PITCH_LOCKED: "submit (stage: product) — the user picks in the dialog; pass the issued pick string in the 'I pick N — …' shape.",
+  PITCH_LOCKED: "submit (stage: product) — the user picks in the dialog; pass the issued pick string in the 'I pick A — …' shape.",
   GIFT_LOCKED: "submit (stage: layout) — render the layout mockups locally, the user picks one, lock it to receive ARTWORK_SPECS.",
   LAYOUT_LOCKED: "submit (stage: artwork) — render the Final_Print_Artwork locally to ARTWORK_SPECS, the user approves it, then submit the file.",
   ARTWORK_LOCKED: "pay — issue the payment link from the locked session. Quantity, address and card are entered on the linked page; nothing is asked in the dialog.",
@@ -180,7 +180,7 @@ function layoutKeys(layoutOptionsText) {
     const m = line.trim().match(/^([A-Za-z])\s*[—–-]/);
     if (m) keys.push(m[1].toUpperCase());
   }
-  return keys.length ? keys : ["A", "B", "C"];
+  return keys.length ? keys : ["X", "Y", "Z"];
 }
 
 // ── Stage 1 · Intake ────────────────────────────────────────────────
@@ -251,7 +251,7 @@ async function pitchLockedReply(env, row) {
     pitch_text: row.pitch_text,
     pitch_form: row.pitch_form,
     instruction:
-      "Pitch locked — it prints exactly as locked. Present the items from the start reply in the dialog, under their service names only; the user taps one. Then submit the pick (stage: product) in the issued shape \"I pick N — <name>[, Color: <color>]\" — the name must be the item's exact service name (the pick string issued at start); the service rejects any other name.",
+      "Pitch locked — it prints exactly as locked. Present the items from the start reply in the dialog, under their service names only; the user taps one. Then submit the pick (stage: product) in the issued shape \"I pick A — <name>[, Color: <color>]\" — the name must be the item's exact service name (the pick string issued at start); the service rejects any other name.",
     next: NEXT_STEP.PITCH_LOCKED,
   };
 }
@@ -264,7 +264,7 @@ export async function selectGift(env, { sessionId, pick }) {
   if (!parsed) {
     return {
       error:
-        'submit (stage: product) needs the pick in the shape "I pick N — <name>[, Color: <color>]" — form it from the user\'s tap in the dialog.',
+        'submit (stage: product) needs the pick in the shape "I pick A — <name>[, Color: <color>]" — form it from the user\'s tap in the dialog.',
     };
   }
   if (row.state !== "PITCH_LOCKED") {
@@ -283,7 +283,7 @@ export async function selectGift(env, { sessionId, pick }) {
 
   const { items } = await loadInventory(env);
   const page = await pageProducts(env, items);
-  const entry = page[parsed.n - 1];
+  const entry = page[parsed.n.charCodeAt(0) - 65];
   if (!entry) {
     return {
       error: `Pick ${parsed.n} does not match the gift list — it currently has ${page.length} item(s). Ask the user to pick again in the dialog.`,
@@ -335,12 +335,12 @@ export async function selectGift(env, { sessionId, pick }) {
 
 function parsePick(pick) {
   const text = String(pick ?? "").trim();
-  const m = text.match(/^I pick\s+(\d+)\s*[—–-]\s*(.+)$/i);
+  const m = text.match(/^I pick\s+([A-Za-z])\s*[—–-]\s*(.+)$/i);
   if (!m) return null;
   const rest = m[2].replace(/https?:\/\/\S+\s*$/, "").replace(/\.+$/, "").trim();
   const colorMatch = rest.match(/,\s*Color:\s*([^,]+)$/i);
   const name = colorMatch ? rest.slice(0, colorMatch.index).trim() : rest;
-  return { n: Number(m[1]), name, color: colorMatch ? colorMatch[1].trim() : null };
+  return { n: m[1].toUpperCase(), name, color: colorMatch ? colorMatch[1].trim() : null };
 }
 
 // Guard rail: a pick is valid only under the item's server-issued name —
@@ -364,7 +364,7 @@ function giftLockedReply(env, row, item, product) {
     layout_options: product.layout_options || DEFAULT_LAYOUT_OPTIONS,
     themed_base_image: product.image_key ? `${SITE}/images/${product.image_key}` : null,
     instruction:
-      "Product locked. Render the layout mockups locally ON the themed_base_image: download it and apply the locked pitch_text onto the product itself, in the locked variant_label's color — one mockup per layout option (the layout_options above, the item's real A/B/C descriptions), so they are clean mockups of the real product, never bare text-layout panels. The words never change. Present the mockups for the user's pick. Then submit the picked letter (stage: layout).",
+      "Product locked. Render the layout mockups locally ON the themed_base_image: download it and apply the locked pitch_text onto the product itself, in the locked variant_label's color — one mockup per layout option (the layout_options above, the item's real X/Y/Z descriptions), so they are clean mockups of the real product, never bare text-layout panels. The words never change. Present the mockups for the user's pick. Then submit the picked letter (stage: layout).",
     next: NEXT_STEP.GIFT_LOCKED,
   };
 }

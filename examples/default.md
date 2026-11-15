@@ -32,7 +32,7 @@ Pitch — tap 1–3, or type your own wording in the input field:
 [flex menu] 1 · 《ISO 13485 Consulting》、Personalized Path、Passes Audits、Works in Daily Operations · 2 · 《Mockup ISO Consulting》、Assess、Plan、Build、Verify、Certify · 3 · A Partner in Compliance
 
 Product — tap one:
-[flex menu] 1 · XXXXX · 2 · YYYYY
+[flex menu] A · XXXXX · B · YYYYY
 ```
 
 (user)
@@ -42,7 +42,7 @@ Your ISO 13485--Partner--in Compliance
 
 (user)
 ```
-1 · XXXXX
+A · XXXXX
 ```
 
 (assistant)
@@ -51,28 +51,28 @@ Your ISO 13485--Partner--in Compliance
 
 🔒 Pitch: "Your ISO 13485--Partner--in Compliance" · XXXXX — <price>
 
-A — Centered, 3 lines, large
-![Layout A](./assets/ex1-layout-a.webp)
+X — Centered, 3 lines, large
+![Layout X](./assets/ex1-layout-a.webp)
 
-B — Small top line + rule + large name
-![Layout B](./assets/ex1-layout-b.webp)
+Y — Small top line + rule + large name
+![Layout Y](./assets/ex1-layout-b.webp)
 
-C — 2 lines
-![Layout C](./assets/ex1-layout-c.webp)
+Z — 2 lines
+![Layout Z](./assets/ex1-layout-c.webp)
 
-[flex menu] Layout A · Layout B · Layout C
+[flex menu] Layout X · Layout Y · Layout Z
 ```
 
 (user)
 ```
-Layout B
+Layout Y
 ```
 
 (assistant)
 ```
 # Artwork
 
-🔒 Layout B — Final_Print_Artwork (PNG, transparent, single color, text only; shown here on black):
+🔒 Layout Y — Final_Print_Artwork (PNG, transparent, single color, text only; shown here on black):
 ![Final_Print_Artwork](./assets/ex1-artwork-preview.png)
 
 [flex menu] Approve artwork
@@ -86,7 +86,7 @@ Approve artwork
 ```
 # Check Out
 
-🔒 Artwork filed — XXXXX, Layout B, <price>.
+🔒 Artwork filed — XXXXX, Layout Y, <price>.
 [Check out](https://p2gift.keeg.uk/cart/prefill/pf_xxxxx) — quantity, address and card are entered on the linked page; nothing is asked here. Link expires in about 15 minutes.
 ```
 
@@ -104,7 +104,7 @@ Approve artwork
 Three practices — the whole method:
 
 1. **Chat sequence** — one round per stage, in order; at # Pitch and Product the pitch and the product settle in the same round — submit the pitch, then the product, back-to-back. Locks move forward only. The pitch locks verbatim, exactly as typed or tapped. Products are named exactly as the service names them — never add descriptions or taglines.
-2. **Layout** — render the 3 options ON the product's base image, the exact pitch text composited onto the product (never an image-generation model, never bare text panels). Fixed text box per product + layout, so the first render fits; render A / B / C in parallel. While the user reads the pitch candidates, fetch the base images so rendering starts the moment the product locks.
+2. **Layout** — render the 3 options ON the product's base image, the exact pitch text composited onto the product (never an image-generation model, never bare text panels). Fixed text box per product + layout, so the first render fits; render X / Y / Z in parallel. While the user reads the pitch candidates, fetch the base images so rendering starts the moment the product locks.
 3. **Artwork** — the picked layout re-rendered at print size in the same step: PNG only, transparent background, single color, text only, 3 MB or smaller, hard edges (no grey halo).
 
 If stuck:

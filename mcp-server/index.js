@@ -23,6 +23,11 @@
 // # Select A Source takes an attachment with no menu, and # Pitch
 // + # Pick A Product merge into # Pitch and Product (one round,
 // two submits back-to-back). The tool surface is unchanged.
+// v0.6.2 (2026-11-15): distinct reference alphabets per pick —
+// pitch options stay numeric (1, 2, 3), product picks are letters
+// ("I pick A — …"), layout options are X / Y / Z. The server
+// enforces all three: the pick parser takes a letter, and layout
+// keys come from the product's layout_options text (X/Y/Z).
 //
 // Auth (unchanged from v0.3.0): /mcp is OPEN — no token, no sign-in.
 // The agent works token-free; abuse control is rate limits (see
@@ -66,7 +71,7 @@ import {
   MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR,
 } from "./rate-limit.js";
 
-const SERVER = { name: "p2gift", version: "0.6.1" };
+const SERVER = { name: "p2gift", version: "0.6.2" };
 
 const STAGES = [
   "1 Select A Source — the run opens here; the user attaches a pitch deck (PPT/PDF or photo), no menu",
@@ -136,14 +141,14 @@ const TOOLS = [
   },
   {
     name: "submit",
-    description: "Advance the session by one stage, with the user's input for the open stage. stage 'pitch' takes pitch_text — the settled wording, locked verbatim exactly as given. stage 'product' takes pick — the issued pick string, in the shape \"I pick N — <name>[, Color: <color>]\"; the name must be the item's exact service name, and the service rejects any other name. stage 'layout' takes layout — 'A', 'B' or 'C' from the locked item's layout options; the reply carries ARTWORK_SPECS. stage 'artwork' takes artwork_png_base64 — the user-approved Final_Print_Artwork, filed exactly as submitted. The service holds the stage order and rejects an input that is not the open stage.",
+    description: "Advance the session by one stage, with the user's input for the open stage. stage 'pitch' takes pitch_text — the settled wording, locked verbatim exactly as given. stage 'product' takes pick — the issued pick string, in the shape \"I pick A — <name>[, Color: <color>]\"; the name must be the item's exact service name, and the service rejects any other name. stage 'layout' takes layout — 'X', 'Y' or 'Z' from the locked item's layout options; the reply carries ARTWORK_SPECS. stage 'artwork' takes artwork_png_base64 — the user-approved Final_Print_Artwork, filed exactly as submitted. The service holds the stage order and rejects an input that is not the open stage.",
     inputSchema: {
       type: "object",
       properties: {
         session_id: { type: "string" },
         stage: { type: "string", enum: ["pitch", "product", "layout", "artwork"], description: "The stage this input belongs to." },
         pitch_text: { type: "string", description: "stage 'pitch': the settled pitch, exactly as the user approved it — it prints character for character." },
-        pick: { type: "string", description: "stage 'product': the pick, in the shape \"I pick N — <name>[, Color: <color>]\"." },
+        pick: { type: "string", description: "stage 'product': the pick, in the shape \"I pick A — <name>[, Color: <color>]\"." },
         layout: { type: "string", description: "stage 'layout': the picked layout key, e.g. \"B\"." },
         artwork_png_base64: { type: "string", description: "stage 'artwork': the approved Final_Print_Artwork, base64-encoded." },
         artwork_name: { type: ["string", "null"], description: "stage 'artwork': file name for the artwork (defaults to final-print-artwork.png)." },
@@ -328,7 +333,7 @@ export async function handleMcpRequest(request, env, authProps) {
           ...started,
           stages: STAGES,
           inventory_source: inv.source,
-          items: inv.items.map((i, idx) => ({ id: i.id, name: i.name, pick: `I pick ${idx + 1} — ${i.name}`, surface: i.surface, treatment: i.treatment ?? null, lead_time_days: i.lead_time_days ?? null })),
+          items: inv.items.map((i, idx) => ({ id: i.id, name: i.name, pick: `I pick ${String.fromCharCode(65 + idx)} — ${i.name}`, surface: i.surface, treatment: i.treatment ?? null, lead_time_days: i.lead_time_days ?? null })),
         }));
       }
     } else if (name === "submit") {
