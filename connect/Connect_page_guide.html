@@ -8,13 +8,16 @@
 <style>
   body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background: #fff7ed; color: #1c1917; }
   main { max-width: 640px; margin: 0 auto; padding: 32px 20px 48px; }
-  header { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   header img { width: 44px; height: 44px; border-radius: 10px; }
   header .name { font-size: 28px; font-weight: 700; }
+  header nav { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  header .example-link { font-size: 13px; letter-spacing: .08em; color: #fa6001; text-decoration: none; font-weight: 600; }
+  header .example-link:hover { text-decoration: underline; }
+  .tagline { font-weight: 600; font-size: 17px; margin: 0 0 26px; }
   section { background: #ffffff; border: 1px solid #fed7aa; border-radius: 14px; padding: 22px 24px; margin-bottom: 20px; }
   h2 { margin: 0 0 10px; font-size: 20px; }
   p { margin: 0 0 8px; line-height: 1.55; }
-  .tagline { font-weight: 600; }
   button { background: #fa6001; color: #ffffff; border: 0; border-radius: 999px; padding: 14px 28px; font-size: 17px; font-weight: 700; cursor: pointer; }
   button:active { transform: translateY(1px); }
   .note { color: #57534e; font-size: 14px; margin-top: 12px; }
@@ -26,11 +29,14 @@
   <header>
     <img src="https://p2gift.keeg.uk/p2gift-icon.png" alt="p2gift">
     <span class="name">p2gift</span>
+    <nav>
+      <a class="example-link" href="https://p2gift.keeg.uk/example">EXAMPLE</a>
+    </nav>
   </header>
+  <p class="tagline">We Put Your Pitch on a Gift--to Help You Win the Heart and the Mind.</p>
 
   <section>
     <h2>What do we do?</h2>
-    <p class="tagline">We Put Your Pitch on a Gift Keepsake--to Help You Win the Heart and the Mind.</p>
     <p>Give Muse a pitch — or a whole PPT deck — and p2gift turns it into one printed gift: pick the pitch, pick the gift, pick a layout, approve the artwork, check out. Every pick is a tap in the chat.</p>
   </section>
 
@@ -38,13 +44,13 @@
     <h2>How to start?</h2>
     <p>One tap copies the connect message. Paste it to Muse, and the dialog starts.</p>
     <button id="connectBtn" type="button">Connect to Start</button>
-    <p class="note" id="note">Copies: "Custom connect to p2gift: https://p2gift.keeg.uk/mcp. Connect, save it as a reusable skill."</p>
+    <p class="note" id="note">One tap copies it — then paste to Muse.</p>
   </section>
 
   <footer>Questions? hello@keeg.uk</footer>
 </main>
 <script>
-  var MSG = "Custom connect to p2gift: https://p2gift.keeg.uk/mcp. Connect, save it as a reusable skill.";
+  var MSG = "Connect p2gift service by adding this MCP server: https://p2gift.keeg.uk/mcp (no sign-in required).\n\nPurpose: Wizard-guided custom gift ordering.\n\nInteraction: Use Telegram-style concise messages and Flex Menus throughout the ordering wizard.\n\nSave: Make it a reusable skill so I can simply ask you to order gifts anytime.";
   var btn = document.getElementById("connectBtn");
   var note = document.getElementById("note");
   btn.addEventListener("click", function () {
