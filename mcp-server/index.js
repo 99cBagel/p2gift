@@ -3,20 +3,22 @@
 // notifications/initialized, tools/list, tools/call, resources/list,
 // resources/read, prompts/list, prompts/get, ping.
 //
-// v0.5.0 — the lock-stage wizard, flex-menu dialog. Ordering runs
-// through a server-side session (D1 table wizard_sessions, migration
-// 0046): the Agent holds only a session_id, and each tool advances
-// exactly one stage — intake → pitch → gift → layout → artwork →
-// checkout → confirmation (+ order lookup). The state machine lives
-// in session.js / checkout.js; locks are read from the session row,
-// never from Agent arguments. v0.5.0 (owner decisions, 2026-11-14):
-// the pitch locks verbatim — the fit rail is gone; there is no
-// order-details stage — prepare_checkout runs from the artwork
-// lock and Stripe collects the delivery address at payment; all
-// picks happen in the Muse dialog (flex menu) and the Product
-// Page is view-only reference. Artwork carries no automated file
-// rail — approve_artwork parks the file as-is and the operator
-// reviews it manually (owner decision, 2026-11-13).
+// v0.6.0 — the p2gift Intake Service (owner decisions, 2026-11-15).
+// Four tools only: start opens a server-side session (D1 table
+// wizard_sessions, migration 0046), submit advances it one stage at
+// a time (pitch → product → layout → artwork), pay issues the
+// payment link, status reads the settled order. The state machine
+// lives in session.js / checkout.js; locks are read from the session
+// row, never from Agent arguments. The pitch locks verbatim — no fit
+// rail. There is no order-details stage: pay runs from the artwork
+// lock and the payment page collects quantity, address and card.
+// Artwork carries no automated file rail — submit parks the file
+// as-is and the operator reviews it manually (owner decision,
+// 2026-11-13). The service's only description is the worked example
+// (examples/default.md): the connect prompt below points at it, and
+// the same text rides in the initialize instructions so every
+// connecting agent receives it without fetching. Install is
+// copy-only — no reusable skill is issued or saved.
 //
 // Auth (unchanged from v0.3.0): /mcp is OPEN — no token, no sign-in.
 // The agent works token-free; abuse control is rate limits (see
@@ -51,7 +53,6 @@ import {
   selectGift,
   approveLayout,
   approveArtwork,
-  setOrderDetails,
 } from "./session.js";
 import { prepareCheckoutFromSession, getOrderStatus, lookupOrder } from "./checkout.js";
 import {
@@ -61,46 +62,41 @@ import {
   MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR,
 } from "./rate-limit.js";
 
-const SERVER = { name: "p2gift", version: "0.5.0" };
+const SERVER = { name: "p2gift", version: "0.6.0" };
 
 const STAGES = [
-  "1 Intake — start_session records the pitch candidates from the source",
-  "2 Pitch — approve_pitch locks the exact pitch text, verbatim (no fit check, no reshape)",
-  "3 Gift — select_gift locks the gift from the user's pick in the dialog (the product page is view-only)",
-  "4 Layout — approve_layout locks the Print Layout Design and issues ARTWORK_SPECS",
-  "5 Artwork — approve_artwork parks the user-approved Final Print Artwork (no automated check)",
-  "6 Order details (optional) — set_order_details locks quantity + delivery name/address when the user gave them; checkout does not require it",
-  "7 Checkout — prepare_checkout issues the signed checkout link; the user pays on the store page and Stripe collects email, delivery address and card (this store's OAuth gate is off — Stripe's payment is the signing)",
-  "8 Confirmation — get_order_status reports the webhook-settled order back to the Agent",
-  "9 Order lookup — lookup_order by order # + order token, no session needed",
+  "1 Select A Source — the run opens here; the user picks PPT 2 gift or Pitch 2 gift",
+  "2 Pitch — submit locks the exact pitch text, verbatim (no fit check, no reshape)",
+  "3 Product — submit locks the product from the user's pick in the dialog, under its service-issued name",
+  "4 Layout — submit locks the Print Layout Design and issues ARTWORK_SPECS",
+  "5 Artwork — submit files the user-approved Final_Print_Artwork (parked as-is, no automated check)",
+  "6 Check Out — pay issues the signed payment link; quantity, address and card are entered on the linked page",
+  "7 Order Status — status reports the settled order; later checks take the order no. + token, no session needed",
 ];
 
-// Worked examples for few-shot (N-shot) learning, stored in R2 under
-// examples/. One Markdown file per example, slug-named; "default" is
-// Example 1 (the flex-menu dialog, customer view) and "annotated" is
-// Example 2 (the same run with the server log lines). The same
-// Markdown is rendered for humans at /example/<slug> (HTML in a
-// browser, raw Markdown with ?format=md). Adding an example = add
-// its files here and sync them to R2.
+// The MCP-to-Agent prompt upon connect. The same text is returned by
+// prompts/get (p2gift-connect) and carried in the initialize result's
+// instructions, so an agent receives it whether or not it fetches
+// prompts. It points at the example — the service's only description.
+const CONNECT_TEXT = [
+  "You are connected to the p2gift Intake Service. Read the example first — p2gift://examples/default.md — it is the service's only description: one worked intake, the three practices (chat sequence, layout, artwork), and the if-stuck lines. Follow it exactly. Install is copy-only: save nothing, make no reusable skill.",
+  "Reply first with # Select A Source — the Connected line and the flex menu (PPT 2 gift · Pitch 2 gift · Remove this). Then follow the stages in order, one input per stage. start opens the session. submit carries each stage's input: the pitch (locks verbatim, exactly as typed or tapped), the product (named exactly as the service names it — the service issues the pick strings), the layout pick, the artwork file. pay issues the payment link: quantity, address and card are entered on the linked page — ask for none of them in the dialog. status closes the run with the # Order Status message, and serves later checks with the order no. + token.",
+  "Never invent pitch wording, quantity, recipient, or price.",
+].join("\n\n");
+
+// The service's only description: ONE worked example, stored in R2
+// under examples/. The Markdown is the example an agent follows; the
+// four images are the pictures it embeds (the three layout mockups
+// and the Final_Print_Artwork). The same Markdown is rendered for
+// humans at /example (HTML in a browser, raw Markdown with
+// ?format=md). Adding a resource = add its file here and sync it
+// to R2.
 const EXAMPLE_FILES = [
-  { key: "examples/connect-prompt/default.md", mimeType: "text/markdown", name: "Connect Prompt — p2gift overview for the connected Agent", description: "Read first on connect: what p2gift (PPT-to-Gift) is, the flex-menu dialog rules, the stages, the commands, the canonical terms, and the guardrails." },
-  { key: "examples/default.md", mimeType: "text/markdown", name: "Example 1 (default) — flex-menu dialog, clean (customer view)", description: "Default worked example: PPT in, pitch locked verbatim, gift + layout + artwork picked in the dialog, checkout link, Order Status. No tool lines — the run as the customer sees it." },
-  { key: "examples/annotated.md", mimeType: "text/markdown", name: "Example 2 — flex-menu dialog, annotated (server log)", description: "The same flex-menu run with the server-side log lines: tool calls, tool replies, local work, locks, session states." },
-  { key: "examples/assets/ex1-layout-a.webp", mimeType: "image/webp", name: "Example 1 asset — Layout A mockup", description: "Example 1: Layout A mockup on the Tumbler's themed-base image." },
-  { key: "examples/assets/ex1-layout-b.webp", mimeType: "image/webp", name: "Example 1 asset — Layout B mockup (picked)", description: "Example 1: Layout B mockup on the Tumbler's themed-base image — the picked layout." },
-  { key: "examples/assets/ex1-layout-c.webp", mimeType: "image/webp", name: "Example 1 asset — Layout C mockup", description: "Example 1: Layout C mockup on the Tumbler's themed-base image." },
-  { key: "examples/assets/ex1-artwork-preview.png", mimeType: "image/png", name: "Example 1 asset — Final Print Artwork preview", description: "Example 1: the approved Final Print Artwork (Layout B), previewed on black." },
-  { key: "examples/assets/ex2-layout-a.webp", mimeType: "image/webp", name: "Example 2 asset — Layout A mockup", description: "Example 2: Layout A mockup on the Tumbler's themed-base image." },
-  { key: "examples/assets/ex2-layout-b.webp", mimeType: "image/webp", name: "Example 2 asset — Layout B mockup", description: "Example 2: Layout B mockup on the Tumbler's themed-base image." },
-  { key: "examples/assets/ex2-layout-c.webp", mimeType: "image/webp", name: "Example 2 asset — Layout C mockup (picked)", description: "Example 2: Layout C mockup on the Tumbler's themed-base image — the picked layout." },
-  { key: "examples/assets/ex2-artwork-preview.png", mimeType: "image/png", name: "Example 2 asset — Final Print Artwork preview", description: "Example 2: the approved Final Print Artwork (Layout C), previewed on black." },
-  { key: "examples/assets/themed-base.webp", mimeType: "image/webp", name: "Example asset — themed-base (Tumbler mockup)", description: "Stainless Tumbler mockup, white pitch text on matte black, no period." },
-  { key: "examples/assets/layout-a.webp", mimeType: "image/webp", name: "Example asset — Layout A", description: "Layout A: centered, 3 lines, large." },
-  { key: "examples/assets/layout-b.webp", mimeType: "image/webp", name: "Example asset — Layout B", description: "Layout B, chosen: small top line, rule, large name." },
-  { key: "examples/assets/layout-c.webp", mimeType: "image/webp", name: "Example asset — Layout C", description: "Layout C: 2 lines, em dash kept." },
-  { key: "examples/assets/layout-3choices.webp", mimeType: "image/webp", name: "Example asset — Layouts A, B, C in one image", description: "The three print layout designs side by side in one strip — A left, B middle, C right; the combined image shown in the default workflow example." },
-  { key: "examples/assets/final_print_artwork.png", mimeType: "image/png", name: "Example asset — Final Print Artwork, Layout B", description: "Final Print Artwork, Layout B, white text on black." },
-  { key: "examples/assets/copychar.png", mimeType: "image/png", name: "Example asset — CopyChar icon", description: "The copy icon at the end of the How to Start message line in the skills briefer." },
+  { key: "examples/default.md", mimeType: "text/markdown", name: "Example — the worked intake", description: "The p2gift Intake Service's only description: one worked intake (pitch, product, layout, artwork, payment link, Order Status), the three practices, and the if-stuck lines. Read it on connect and follow it exactly." },
+  { key: "examples/assets/ex1-layout-a.webp", mimeType: "image/webp", name: "Example asset — Layout A mockup", description: "The example's Layout A mockup on the product's themed-base image." },
+  { key: "examples/assets/ex1-layout-b.webp", mimeType: "image/webp", name: "Example asset — Layout B mockup (picked)", description: "The example's Layout B mockup on the product's themed-base image — the picked layout." },
+  { key: "examples/assets/ex1-layout-c.webp", mimeType: "image/webp", name: "Example asset — Layout C mockup", description: "The example's Layout C mockup on the product's themed-base image." },
+  { key: "examples/assets/ex1-artwork-preview.png", mimeType: "image/png", name: "Example asset — Final_Print_Artwork", description: "The example's approved Final_Print_Artwork (Layout B), previewed on black." },
 ];
 const EXAMPLE_RESOURCES = EXAMPLE_FILES.map((f) => ({
   uri: `p2gift://${f.key}`,
@@ -120,30 +116,10 @@ function arrayBufferToBase64(buf) {
   return btoa(binary);
 }
 
-const SHIPPING_SCHEMA = {
-  type: "object",
-  description: "Delivery address for the recipient, exactly as the user gave it.",
-  properties: {
-    name: { type: "string" },
-    line1: { type: "string" },
-    line2: { type: ["string", "null"] },
-    city: { type: "string" },
-    state: { type: ["string", "null"] },
-    postal: { type: "string" },
-    country: { type: "string", description: "2-letter country code, e.g. US." },
-  },
-  required: ["name", "line1", "city", "postal", "country"],
-};
-
 const TOOLS = [
   {
-    name: "service_info",
-    description: "PPT-to-Gift service overview: the lock-stage wizard stages and the live gift item pool (names + print surfaces).",
-    inputSchema: { type: "object", properties: {} },
-  },
-  {
-    name: "start_session",
-    description: "Stage 1 (Intake): open a wizard session and record the pitch candidates extracted locally from the user's source (deck, text). Returns the session_id — the only state the agent carries. No sign-in or token at any stage before checkout.",
+    name: "start",
+    description: "Open an intake session with the p2gift Intake Service. Call once the pitch candidates are drafted locally from the user's source (deck or text). Returns the session_id — the only state you carry — plus the stages and the items with their issued pick strings. No sign-in or token is needed.",
     inputSchema: {
       type: "object",
       properties: {
@@ -156,70 +132,25 @@ const TOOLS = [
     },
   },
   {
-    name: "approve_pitch",
-    description: "Stage 2 (Pitch): lock the pitch wording the user settled — verbatim, exactly as given. No fit check and no reshape: any wording with printable text locks. On the lock, returns product_page_url (view-only reference; the gift pick itself happens in the dialog).",
+    name: "submit",
+    description: "Advance the session by one stage, with the user's input for the open stage. stage 'pitch' takes pitch_text — the settled wording, locked verbatim exactly as given. stage 'product' takes pick — the issued pick string, in the shape \"I pick N — <name>[, Color: <color>]\"; the name must be the item's exact service name, and the service rejects any other name. stage 'layout' takes layout — 'A', 'B' or 'C' from the locked item's layout options; the reply carries ARTWORK_SPECS. stage 'artwork' takes artwork_png_base64 — the user-approved Final_Print_Artwork, filed exactly as submitted. The service holds the stage order and rejects an input that is not the open stage.",
     inputSchema: {
       type: "object",
       properties: {
         session_id: { type: "string" },
-        pitch_text: { type: "string", description: "The settled pitch, exactly as the user approved it — it prints character for character." },
+        stage: { type: "string", enum: ["pitch", "product", "layout", "artwork"], description: "The stage this input belongs to." },
+        pitch_text: { type: "string", description: "stage 'pitch': the settled pitch, exactly as the user approved it — it prints character for character." },
+        pick: { type: "string", description: "stage 'product': the pick, in the shape \"I pick N — <name>[, Color: <color>]\"." },
+        layout: { type: "string", description: "stage 'layout': the picked layout key, e.g. \"B\"." },
+        artwork_png_base64: { type: "string", description: "stage 'artwork': the approved Final_Print_Artwork, base64-encoded." },
+        artwork_name: { type: ["string", "null"], description: "stage 'artwork': file name for the artwork (defaults to final-print-artwork.png)." },
       },
-      required: ["session_id", "pitch_text"],
+      required: ["session_id", "stage"],
     },
   },
   {
-    name: "select_gift",
-    description: "Stage 3 (Gift): lock the gift from the user's pick in the dialog, passed in the shape `I pick N — <gift item name>[, Color: <color>]` (the agent forms it from the user's tap). The name must be the item's exact server name — use the pick string issued for the item in service_info; the server rejects invented or decorated names. The number maps to the product page's order. On the lock it feeds back the item's layout_options and themed_base_image for the layout stage.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        session_id: { type: "string" },
-        pick: { type: "string", description: "The pick, in the shape \"I pick N — <gift item name>[, Color: <color>]\"." },
-      },
-      required: ["session_id", "pick"],
-    },
-  },
-  {
-    name: "approve_layout",
-    description: "Stage 4 (Layout): lock the Print Layout Design the user picked (A, B, or C — from the locked gift item's Layout_Options). Returns the item's ARTWORK_SPECS for the local artwork render.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        session_id: { type: "string" },
-        layout: { type: "string", description: "The picked layout key, e.g. \"B\"." },
-      },
-      required: ["session_id", "layout"],
-    },
-  },
-  {
-    name: "approve_artwork",
-    description: "Stage 5 (Artwork): park the Final Print Artwork the user approved, exactly as submitted — PNG, base64-encoded. No automated check runs on the file; the operator reviews it in Admin and addresses any issue with the customer manually.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        session_id: { type: "string" },
-        artwork_png_base64: { type: "string", description: "The approved Final Print Artwork, base64-encoded." },
-        artwork_name: { type: ["string", "null"], description: "File name for the artwork (defaults to final-print-artwork.png)." },
-      },
-      required: ["session_id", "artwork_png_base64"],
-    },
-  },
-  {
-    name: "set_order_details",
-    description: "Stage 6 (Order details, optional): lock a quantity (and delivery name + address) the user gave in the dialog, exactly as given — none may be invented. prepare_checkout does NOT require this stage: without it the quantity is 1 and Stripe collects the delivery address at payment.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        session_id: { type: "string" },
-        quantity: { type: "integer" },
-        shipping: SHIPPING_SCHEMA,
-      },
-      required: ["session_id", "quantity", "shipping"],
-    },
-  },
-  {
-    name: "prepare_checkout",
-    description: "Stage 7 (Checkout): build the checkout from the locked session — the agent supplies only the session_id; gift, variant, quantity (1 unless set_order_details locked one), artwork, and price all come from the locked row and the live catalog. No address is collected by the agent — Stripe collects the email, the delivery address and the card on its page. Returns checkout_url: a signed, single-use link expiring in about 15 minutes. The user opens it, sees the locked price and cart, and pays on the store page (this store's OAuth sign-in gate is off; the payment is the signing); the card never passes through the agent. An expired link is re-issued by calling again.",
+    name: "pay",
+    description: "Issue the payment link for the locked session. The item, variant, quantity (1 unless one was locked) and price all come from the locked session and the live item data — you supply only the session_id. Returns a signed, single-use link expiring in about 15 minutes: the user opens it and enters quantity, address and card on the linked page; nothing is asked in the dialog, and the card never passes through you. An expired link is re-issued by calling again.",
     inputSchema: {
       type: "object",
       properties: { session_id: { type: "string" } },
@@ -227,24 +158,15 @@ const TOOLS = [
     },
   },
   {
-    name: "get_order_status",
-    description: "Stage 8 (Confirmation): read this session's order state from the store — with a server-side wait: while no settled order is linked, the call re-checks every 5 s (up to 3 repeats, ~15 s) and returns the moment the store confirms payment, the checkout link expires unpaid, or the order is refunded; call it again to keep waiting. Payment truth is the webhook-settled orders table — the browser checkout page is never proof. On paid, returns the three-part confirmation (Stripe payment confirmation; expected delivery date = order date + the gift item's Lead_Time; the p2gift-order-lookup pointer with order # + token) and locks the session ORDER_CONFIRMED.",
-    inputSchema: {
-      type: "object",
-      properties: { session_id: { type: "string" } },
-      required: ["session_id"],
-    },
-  },
-  {
-    name: "lookup_order",
-    description: "Stage 9 (Order lookup): look up an order by its order # and order token — no wizard session needed. Returns the fulfilment ladder (paid → print ordered → received → shipped → delivered), the expected delivery date, and the order page link. The middle ladder stages light up when the operator's print feed lands; v1 reports paid, shipping state, and the expected date.",
+    name: "status",
+    description: "Read an order's state. With session_id: this session's order, with a server-side wait — while no settled order is linked, the call re-checks every 5 s (up to 3 repeats, ~15 s) and returns the moment payment settles, the payment link expires unpaid, or the order is refunded; call again to keep waiting. With order_id + order_token instead (both in the run's confirmation and the confirmation email): the same order with no session. Payment truth is the settled order record — the payment page is never proof. On paid, returns the confirmation (payment; expected delivery date = order date + the item's Lead_Time; the order no. + token for later checks).",
     inputSchema: {
       type: "object",
       properties: {
-        order_id: { type: "string", description: "The order's public id (ord_…), from the Stage 8 confirmation." },
-        order_token: { type: "string", description: "The order's guest access token (the token in the order page URL)." },
+        session_id: { type: "string", description: "The intake session to read the order for." },
+        order_id: { type: "string", description: "The order's number, for a session-less check." },
+        order_token: { type: "string", description: "The order's access token (the token in the order page link)." },
       },
-      required: ["order_id", "order_token"],
     },
   },
 ];
@@ -306,8 +228,8 @@ export async function handleConnectRequest(env) {
 // wizard state lives in D1, keyed by the session_id the agent
 // carries). OPEN endpoint: no token is required or checked. Abuse
 // control is the rate limiter below (per IP generally; per IP + per
-// session for prepare_checkout), and everything costly or
-// irreversible sits behind the browser sign-in gate at checkout.
+// session for pay), and everything costly or irreversible sits
+// behind the browser sign-in gate at payment.
 // `authProps` is optional — when a caller happens to be signed in,
 // orders carry that identity.
 export async function handleMcpRequest(request, env, authProps) {
@@ -338,6 +260,7 @@ export async function handleMcpRequest(request, env, authProps) {
       protocolVersion: params?.protocolVersion ?? "2025-03-26",
       capabilities: { tools: {}, resources: {}, prompts: {} },
       serverInfo: SERVER,
+      instructions: CONNECT_TEXT,
     });
   } else if (method === "ping") {
     payload = result(id, {});
@@ -366,7 +289,7 @@ export async function handleMcpRequest(request, env, authProps) {
     payload = result(id, {
       prompts: [{
         name: "p2gift-connect",
-        description: "Connect to p2gift: read the connect prompt first, then the worked examples, then reply with the # Select A Source stage (flex menu).",
+        description: "Connect to the p2gift Intake Service: read the example — the service's only description — then reply with the # Select A Source stage (flex menu).",
       }],
     });
   } else if (method === "prompts/get") {
@@ -374,13 +297,10 @@ export async function handleMcpRequest(request, env, authProps) {
       payload = error(id, -32602, `Unknown prompt: ${params?.name}`);
     } else {
       payload = result(id, {
-        description: "Connect to p2gift: read the connect prompt first, then the worked examples, then reply with the # Select A Source stage (flex menu).",
+        description: "Connect to the p2gift Intake Service: read the example — the service's only description — then reply with the # Select A Source stage (flex menu).",
         messages: [{
           role: "user",
-          content: {
-            type: "text",
-            text: "You are connected to p2gift (PPT-to-Gift). Before starting any order, read these resources in order: 1) p2gift://examples/connect-prompt/default.md — the connect prompt: what p2gift is, the flex-menu dialog rules, the stages, the commands, the canonical terms, the guardrails — then 2) p2gift://examples/default.md (Example 1, the clean dialog) and p2gift://examples/annotated.md (Example 2, the same run with the server log lines). The image assets under examples/assets/ are presentation links: fetch one only when you need to show it to the user; the text resources carry the rules. Then send the connect prompt's first stage as your first reply: '# Select A Source' — the Connected line and the flex menu (PPT 2 gift · Pitch 2 gift · Remove this). The dialog: every stage reply is a # Stage Title plus a minimal telegram-style body; bounded picks are flex-menu taps in the dialog; links are view-only. The wizard behind it: the server holds the session; you hold only the session_id. Start with start_session once the pitch candidates are drafted locally from the user's source. Each stage locks before the next opens — approve_pitch (the pitch locks verbatim — no fit check, no reshape), select_gift (the pick formed from the user's tap, in the 'I pick N — …' shape), approve_layout (returns ARTWORK_SPECS), approve_artwork (the user-approved file, parked as-is), prepare_checkout (the signed link; no order-details stage — the user pays on the store page and Stripe collects the email, delivery address and card; this store's OAuth gate is off, so the payment is the signing; the card never passes through you). set_order_details stays available for a quantity the user gives in the dialog, but checkout never requires it. The run ends with the # Order Status message from get_order_status; lookup_order serves later status checks. Never invent pitch wording, quantity, recipient, or price.",
-          },
+          content: { type: "text", text: CONNECT_TEXT },
         }],
       });
     }
@@ -392,54 +312,61 @@ export async function handleMcpRequest(request, env, authProps) {
     const customer = authProps?.userId
       ? { userId: authProps.userId, email: authProps.email ?? null, name: authProps.name ?? null, provider: authProps.provider }
       : null;
-    if (name === "service_info") {
-      const inv = await loadInventory(env);
-      payload = result(id, textResult({
-        service: "PPT-to-Gift Service Worker",
-        endpoint: "https://p2gift.keeg.uk/mcp",
-        version: SERVER.version,
-        flow: "lock-stage wizard",
-        stages: STAGES,
-        inventory_source: inv.source,
-        gift_items: inv.items.map((i, idx) => ({ id: i.id, name: i.name, pick: `I pick ${idx + 1} — ${i.name}`, surface: i.surface, treatment: i.treatment ?? null, lead_time_days: i.lead_time_days ?? null })),
-        note: "The product page URL is issued by approve_pitch at the pitch lock as view-only reference — the gift pick itself happens in the dialog, from the live items listed here.",
-      }));
-    } else if (name === "start_session") {
-      payload = toolPayload(id, await startSession(env, { pitchCandidates: args.pitch_candidates, customer }));
-    } else if (name === "approve_pitch") {
-      if (!args.session_id || !args.pitch_text) payload = error(id, -32602, "session_id and pitch_text are required");
-      else payload = toolPayload(id, await approvePitch(env, { sessionId: args.session_id, pitchText: args.pitch_text }));
-    } else if (name === "select_gift") {
-      if (!args.session_id || !args.pick) payload = error(id, -32602, "session_id and pick are required");
-      else payload = toolPayload(id, await selectGift(env, { sessionId: args.session_id, pick: args.pick }));
-    } else if (name === "approve_layout") {
-      if (!args.session_id || !args.layout) payload = error(id, -32602, "session_id and layout are required");
-      else payload = toolPayload(id, await approveLayout(env, { sessionId: args.session_id, layout: args.layout }));
-    } else if (name === "approve_artwork") {
-      if (!args.session_id || !args.artwork_png_base64) payload = error(id, -32602, "session_id and artwork_png_base64 are required");
-      else payload = toolPayload(id, await approveArtwork(env, { sessionId: args.session_id, artworkBase64: args.artwork_png_base64, artworkName: args.artwork_name ?? undefined }));
-    } else if (name === "set_order_details") {
-      if (!args.session_id || args.quantity == null || !args.shipping) payload = error(id, -32602, "session_id, quantity and shipping are required");
-      else payload = toolPayload(id, await setOrderDetails(env, { sessionId: args.session_id, quantity: args.quantity, shipping: args.shipping }));
-    } else if (name === "prepare_checkout") {
+    if (name === "start") {
+      const started = await startSession(env, { pitchCandidates: args.pitch_candidates, customer });
+      if (started?.error) {
+        payload = toolPayload(id, started);
+      } else {
+        const inv = await loadInventory(env);
+        payload = result(id, textResult({
+          service: "p2gift Intake Service",
+          endpoint: "https://p2gift.keeg.uk/mcp",
+          version: SERVER.version,
+          ...started,
+          stages: STAGES,
+          inventory_source: inv.source,
+          items: inv.items.map((i, idx) => ({ id: i.id, name: i.name, pick: `I pick ${idx + 1} — ${i.name}`, surface: i.surface, treatment: i.treatment ?? null, lead_time_days: i.lead_time_days ?? null })),
+        }));
+      }
+    } else if (name === "submit") {
+      if (!args.session_id) {
+        payload = error(id, -32602, "session_id is required");
+      } else if (args.stage === "pitch") {
+        if (!args.pitch_text) payload = error(id, -32602, "pitch_text is required for stage 'pitch'");
+        else payload = toolPayload(id, await approvePitch(env, { sessionId: args.session_id, pitchText: args.pitch_text }));
+      } else if (args.stage === "product") {
+        if (!args.pick) payload = error(id, -32602, "pick is required for stage 'product'");
+        else payload = toolPayload(id, await selectGift(env, { sessionId: args.session_id, pick: args.pick }));
+      } else if (args.stage === "layout") {
+        if (!args.layout) payload = error(id, -32602, "layout is required for stage 'layout'");
+        else payload = toolPayload(id, await approveLayout(env, { sessionId: args.session_id, layout: args.layout }));
+      } else if (args.stage === "artwork") {
+        if (!args.artwork_png_base64) payload = error(id, -32602, "artwork_png_base64 is required for stage 'artwork'");
+        else payload = toolPayload(id, await approveArtwork(env, { sessionId: args.session_id, artworkBase64: args.artwork_png_base64, artworkName: args.artwork_name ?? undefined }));
+      } else {
+        payload = error(id, -32602, "stage must be one of: pitch, product, layout, artwork");
+      }
+    } else if (name === "pay") {
       if (!args.session_id) {
         payload = error(id, -32602, "session_id is required");
       } else if (
-        !(await rateLimitHit(env, "prepare-checkout-ip", ip, MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR)) ||
-        !(await rateLimitHit(env, "prepare-checkout-session", args.session_id, MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR))
+        !(await rateLimitHit(env, "pay-ip", ip, MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR)) ||
+        !(await rateLimitHit(env, "pay-session", args.session_id, MCP_PREPARE_CHECKOUT_LIMIT_PER_HOUR))
       ) {
         // The costly call (D1/R2 writes) gets the strict bucket: per IP
-        // and per wizard session.
-        payload = error(id, -32000, "Too many checkout preparations in the last hour. Wait, or use Live Connect (draft an email to hello@keeg.uk).");
+        // and per session.
+        payload = error(id, -32000, "Too many payment links issued in the last hour. Wait, or use Live Connect (draft an email to hello@keeg.uk).");
       } else {
         payload = toolPayload(id, await prepareCheckoutFromSession(env, authProps, { sessionId: args.session_id }));
       }
-    } else if (name === "get_order_status") {
-      if (!args.session_id) payload = error(id, -32602, "session_id is required");
-      else payload = toolPayload(id, await getOrderStatus(env, { sessionId: args.session_id }));
-    } else if (name === "lookup_order") {
-      if (!args.order_id || !args.order_token) payload = error(id, -32602, "order_id and order_token are required");
-      else payload = toolPayload(id, await lookupOrder(env, { orderId: args.order_id, orderToken: args.order_token }));
+    } else if (name === "status") {
+      if (args.session_id) {
+        payload = toolPayload(id, await getOrderStatus(env, { sessionId: args.session_id }));
+      } else if (args.order_id && args.order_token) {
+        payload = toolPayload(id, await lookupOrder(env, { orderId: args.order_id, orderToken: args.order_token }));
+      } else {
+        payload = error(id, -32602, "status needs session_id, or order_id and order_token");
+      }
     } else {
       payload = error(id, -32602, `Unknown tool: ${name}`);
     }

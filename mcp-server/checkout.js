@@ -1,23 +1,22 @@
-// Wizard checkout + confirmation + lookup (Stages 7–9).
+// Payment link + confirmation + status (the pay and status tools).
 //
-// prepare_checkout(session_id) builds the cart from the LOCKED
-// session row — gift, variant, quantity (1 unless an order-details
-// lock set one), and the artwork parked at the artwork lock —
-// prices it from D1, writes the prefill_carts row, and returns the
-// signed checkout link. There is no order-details stage in the
-// flex-menu dialog (owner decision 2026-11-14): the delivery
-// address is collected by Stripe on its checkout page, never by
-// the agent. The only identity check in the wizard sits inside
-// this stage, in the browser, at the store's OAuth gate (v0.3.0,
-// unchanged). No automated artwork check runs here: the artwork
-// stage accepted the file as-is (owner decision 2026-11-13), so
-// checkout cannot reject what that stage accepted.
+// pay(session_id) builds the payment from the LOCKED session row —
+// item, variant, quantity (1 unless a legacy order-details lock set
+// one), and the artwork filed at the artwork lock — prices it from
+// D1, writes the prefill_carts row, and returns the signed payment
+// link. There is no order-details stage (owner decision 2026-11-14):
+// quantity, delivery address and card are entered on the linked
+// payment page, never by the agent. The only identity check sits
+// inside this stage, in the browser, at the OAuth gate (v0.3.0,
+// unchanged; currently off). No automated artwork check runs here:
+// the artwork stage accepted the file as-is (owner decision
+// 2026-11-13), so pay cannot reject what that stage accepted.
 //
-// Confirmation is pull, never push: get_order_status links the
-// session to its order through the prefill token (the checkout API
-// consumes the prefill for the order's own cart), then reads the
-// orders table — which settles from the Stripe webhook only.
-// The browser redirect is never proof of payment.
+// Confirmation is pull, never push: status links the session to its
+// order through the prefill token (the payment flow consumes the
+// prefill for the order's own lines), then reads the orders table —
+// which settles from the payment webhook only. The browser redirect
+// is never proof of payment.
 
 import { loadRow, patch, sessionView, NEXT_STEP, SITE } from "./session.js";
 import { loadInventory } from "./inventory.js";
@@ -47,7 +46,7 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
     }
   } else if (row.state !== "DETAILS_LOCKED" && row.state !== "ARTWORK_LOCKED") {
     return {
-      error: `Session ${row.id} is at ${row.state}; prepare_checkout is not the open step.`,
+      error: `Session ${row.id} is at ${row.state}; pay is not the open step.`,
       session: sessionView(row),
       next: NEXT_STEP[row.state] ?? null,
     };
@@ -61,7 +60,7 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
     .bind(row.product_id)
     .first();
   if (!item || !product?.active) {
-    return { rejected: true, stage: "cart", reasons: ["The locked gift item is no longer sold in the store. Start a new session."] };
+    return { rejected: true, stage: "pay", reasons: ["The locked item is no longer available. Start a new session."] };
   }
   let variant = null;
   let unitPrice = product.price_cents;
@@ -73,16 +72,16 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
       .bind(product.id, row.variant_label)
       .first();
     if (!variant) {
-      return { rejected: true, stage: "cart", reasons: [`Variant "${row.variant_label}" no longer exists for ${item.name}.`] };
+      return { rejected: true, stage: "pay", reasons: [`Variant "${row.variant_label}" no longer exists for ${item.name}.`] };
     }
     unitPrice = variant.price_cents;
     stock = variant.stock;
   }
-  // No order-details stage in the dialog: quantity is whatever an
-  // optional set_order_details lock set, else 1.
+  // No order-details stage in the dialog: quantity is whatever a
+  // legacy order-details lock set, else 1.
   const qty = row.quantity ?? 1;
   if (!Number.isInteger(qty) || qty < 1 || qty > stock) {
-    return { rejected: true, stage: "cart", reasons: [`Only ${stock} of ${item.name} in stock — the quantity ${qty} cannot be filled.`] };
+    return { rejected: true, stage: "pay", reasons: [`Only ${stock} of ${item.name} available — the quantity ${qty} cannot be filled.`] };
   }
   const total = unitPrice * qty;
   const shipping = row.shipping ? JSON.parse(row.shipping) : null;
@@ -129,7 +128,7 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
   return {
     session: sessionView(updated),
     state: updated.state,
-    checkout_url: `${SITE}/cart/prefill/${token}`,
+    payment_link: `${SITE}/cart/prefill/${token}`,
     expires_at: expiresAt + " UTC",
     summary: {
       gift_item: item.name,
@@ -140,8 +139,8 @@ export async function prepareCheckoutFromSession(env, authProps, { sessionId }) 
       ship_to: shipping ? `${shipping.name}, ${shipping.city}, ${shipping.postal}, ${shipping.country}` : null,
     },
     instruction: gateOff
-      ? "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the cart holds the locked gift (the user can change its quantity there) and the user pays on the store page — Stripe collects the email, the delivery address and the card there, and the payment is the signing (this store's OAuth gate is off); the card never passes through the agent. Then call get_order_status — it waits server-side and returns the moment the store confirms; call it again to keep waiting — the checkout page itself is not proof of payment."
-      : "Give the user the checkout_url now — it expires in about 15 minutes. Inside checkout, in the browser: the user signs in with OAuth (the only sign-in in the wizard), sees the cart with the locked gift (its quantity can be changed there), and pays on the store page — Stripe collects the email, the delivery address and the card there; the card never passes through the agent. Then call get_order_status — it waits server-side and returns the moment the store confirms; call it again to keep waiting — the checkout page itself is not proof of payment.",
+      ? "Give the user the payment_link now — it expires in about 15 minutes. The user opens it and pays on the linked page: quantity can be changed there, and the email, delivery address and card are entered there — the payment is the signing (the sign-in gate is off), and the card never passes through you. Then call status — it waits server-side and returns the moment payment settles; call it again to keep waiting — the payment page itself is not proof of payment."
+      : "Give the user the payment_link now — it expires in about 15 minutes. On the linked page the user signs in first (the only sign-in in the flow), then pays: quantity can be changed there, and the email, delivery address and card are entered there; the card never passes through you. Then call status — it waits server-side and returns the moment payment settles; call it again to keep waiting — the payment page itself is not proof of payment.",
     next: NEXT_STEP.CHECKOUT_ISSUED,
   };
 }
@@ -300,7 +299,7 @@ export async function getOrderStatus(env, { sessionId }) {
   if (error) return { error };
   if (row.state !== "CHECKOUT_ISSUED" && row.state !== "ORDER_CONFIRMED") {
     return {
-      error: `Session ${row.id} is at ${row.state}; there is no checkout to confirm yet.`,
+      error: `Session ${row.id} is at ${row.state}; there is no payment to confirm yet.`,
       session: sessionView(row),
       next: NEXT_STEP[row.state] ?? null,
     };
@@ -337,7 +336,7 @@ async function evaluateOrderStatus(env, row) {
               state: row.state,
               order_status: "expired",
               instruction:
-                "The checkout link expired unpaid. Call prepare_checkout to re-issue a fresh link from the locked session, show it to the user, then call get_order_status again to resume waiting.",
+                "The payment link expired unpaid. Call pay to re-issue a fresh link from the locked session, show it to the user, then call status again to resume waiting.",
             },
           };
         }
@@ -350,7 +349,7 @@ async function evaluateOrderStatus(env, row) {
         state: row.state,
         order_status: "not_created",
         instruction:
-          "No order has been created from this session's checkout link yet — this call already waited server-side (5 s checks, up to 3 repeats). Call get_order_status again to keep waiting. Never report a payment the store has not confirmed.",
+          "No order has been created from this session's payment link yet — this call already waited server-side (5 s checks, up to 3 repeats). Call status again to keep waiting. Never report a payment that has not been confirmed.",
       },
     };
   }
@@ -382,15 +381,14 @@ async function evaluateOrderStatus(env, row) {
             basis: "order date + the gift item's Lead_Time; the carrier's date replaces it once the order ships",
           },
           lookup: {
-            headline: "You can lookup status of this order, here is the related skill: p2gift-order-lookup",
-            skill: "p2gift-order-lookup",
+            headline: "Later checks: reconnect and call status with this order no. + token — both are also in the confirmation email.",
             order_id: view.order_id,
             order_token: view.order_token,
             order_page_url: view.order_page_url,
           },
         },
         instruction:
-          "Report the confirmation to the user in the three parts above. The customer also receives the store's order confirmation email.",
+          "Report the confirmation to the user in the three parts above. The customer also receives the order confirmation email.",
       },
     };
   }
@@ -404,15 +402,15 @@ async function evaluateOrderStatus(env, row) {
       instruction:
         order.status === "refunded"
           ? "This order was refunded. Report that plainly; do not present it as a live order."
-          : "The order exists but the store has not confirmed payment. Call get_order_status again to keep waiting — never claim success from the checkout page.",
+          : "The order exists but payment has not been confirmed. Call status again to keep waiting — never claim success from the payment page.",
     },
   };
 }
 
-// ── Stage 9 · Order lookup (no wizard session needed) ───────────────
+// ── Order lookup (status without a session) ─────────────────────────
 export async function lookupOrder(env, { orderId, orderToken }) {
   if (!orderId || !orderToken) {
-    return { error: "lookup_order needs the order # and the order token (both are in the Stage 8 confirmation and on the customer's order page)." };
+    return { error: "status needs the order no. and the order token (both are in the run's confirmation and in the confirmation email)." };
   }
   const order = await orderByPublicId(env, String(orderId).trim().toLowerCase());
   if (!order || !order.access_token || order.access_token !== String(orderToken).trim()) {

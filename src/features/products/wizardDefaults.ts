@@ -18,7 +18,7 @@ C — 2 lines, with the em dash kept`;
  * the customer manually (owner decision, 2026-11-13).
  */
 export const DEFAULT_ARTWORK_SPECS = `Print artwork for this item — render to these specs:
-- File: PNG only, under 15 MB
+- File: PNG only, 3 MB or smaller
 - Background: transparent
 - Color: single color
 - Content: text only (no logo, no images)

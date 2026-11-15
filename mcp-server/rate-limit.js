@@ -4,11 +4,10 @@
 // abuse control moves to (a) these KV-counter rate limits and (b) the
 // browser sign-in gate at checkout (see src/features/auth/checkoutGate.ts).
 // Two buckets:
-//   - general: every /mcp POST, per client IP — catalog reads, workflow
-//     steps, resource reads. Generous: a full order flow is ~15 calls.
-//   - prepare_checkout: the costly call (Workers AI artwork check +
-//     R2/D1 writes), per IP AND per workflow session id. A handful per
-//     order is normal (initial try + a couple of artwork fixes).
+//   - general: every /mcp POST, per client IP — item reads, workflow
+//     steps, resource reads. Generous: a full intake flow is ~15 calls.
+//   - pay: the costly call (R2/D1 writes), per IP AND per session id.
+//     A handful per intake is normal (initial try + re-issues).
 //
 // Counters live in OAUTH_KV (already bound for the OAuth/SMS guards)
 // with a sliding one-hour window — same pattern as the SMS send caps

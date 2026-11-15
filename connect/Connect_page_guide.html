@@ -37,12 +37,12 @@
 
   <section>
     <h2>What do we do?</h2>
-    <p>Give Muse a pitch — or a whole PPT deck — and p2gift turns it into one printed gift: pick the pitch, pick the gift, pick a layout, approve the artwork, check out. Every pick is a tap in the chat.</p>
+    <p>Give Muse a pitch — or a whole PPT deck — and the p2gift Intake Service stages it into one printed gift: pitch, product, layout, artwork. One input per stage, every pick a tap in the chat.</p>
   </section>
 
   <section>
     <h2>How to start?</h2>
-    <p>One tap copies the connect message. Paste it to Muse, and the dialog starts.</p>
+    <p>One tap copies the connect message. Paste it to Muse, and the session opens at Select A Source.</p>
     <button id="connectBtn" type="button">Connect to Start</button>
     <p class="note" id="note">One tap copies it — then paste to Muse.</p>
   </section>
@@ -50,7 +50,7 @@
   <footer>Questions? hello@keeg.uk</footer>
 </main>
 <script>
-  var MSG = "Connect p2gift service by adding this MCP server: https://p2gift.keeg.uk/mcp (no sign-in required).\n\nPurpose: Wizard-guided custom gift ordering.\n\nInteraction: Use Telegram-style concise messages and Flex Menus throughout the ordering wizard.\n\nSave: Make it a reusable skill so I can simply ask you to order gifts anytime.";
+  var MSG = "Connect p2gift Intake Service by adding this MCP server: https://p2gift.keeg.uk/mcp (no sign-in required).\n\nPurpose: The service is staged at multiple round. Follow the MCP example to submit input for each stage.\n\nInteraction: Use Telegram-style concise messages and Flex Menus throughout the session. make install copy-only. do not make skills reusable.\n\nStart with \"Select A Source\" session immediately after the initial Connect session.";
   var btn = document.getElementById("connectBtn");
   var note = document.getElementById("note");
   btn.addEventListener("click", function () {

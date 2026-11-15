@@ -5,21 +5,23 @@
 // session_id. Each tool reads its preconditions from the row — never
 // from Agent arguments — and advances exactly one transition:
 //
-//   SOURCE_LOADED ──approve_pitch──▶ PITCH_LOCKED
-//   PITCH_LOCKED ──select_gift──▶ GIFT_LOCKED
-//   GIFT_LOCKED ──approve_layout──▶ LAYOUT_LOCKED   (issues ARTWORK_SPECS)
-//   LAYOUT_LOCKED ──approve_artwork──▶ ARTWORK_LOCKED
-//   ARTWORK_LOCKED ──set_order_details──▶ DETAILS_LOCKED
-//   DETAILS_LOCKED ──prepare_checkout──▶ CHECKOUT_ISSUED
-//   CHECKOUT_ISSUED ──get_order_status (webhook-settled)──▶ ORDER_CONFIRMED
+//   SOURCE_LOADED ──submit(pitch)──▶ PITCH_LOCKED
+//   PITCH_LOCKED ──submit(product)──▶ GIFT_LOCKED
+//   GIFT_LOCKED ──submit(layout)──▶ LAYOUT_LOCKED   (issues ARTWORK_SPECS)
+//   LAYOUT_LOCKED ──submit(artwork)──▶ ARTWORK_LOCKED
+//   ARTWORK_LOCKED ──pay──▶ CHECKOUT_ISSUED
+//   CHECKOUT_ISSUED ──status (webhook-settled)──▶ ORDER_CONFIRMED
 //
-// Locks are forward-only and write-once: there is no unlock tool in
-// v1 — a wrong lock means a fresh session via start_session.
+// (DETAILS_LOCKED remains reachable only through the retired
+// order-details path; pay still accepts it for legacy sessions.)
+//
+// Locks are forward-only and write-once: there is no unlock in
+// v1 — a wrong lock means a fresh session via start.
 // Repeating the call that produced the current state is idempotent:
 // it returns the current state and changes nothing.
 //
 // Artwork carries NO automated file rail (owner decision 2026-11-13):
-// approve_artwork parks the file exactly as received; the operator
+// submit (stage: artwork) parks the file exactly as received; the operator
 // reviews it in Admin and addresses any issue with the customer
 // manually. ARTWORK_SPECS are advisory text for the Assistant,
 // issued at the layout lock from the locked product's row.
@@ -27,9 +29,7 @@
 import { loadInventory } from "./inventory.js";
 
 export const SITE = "https://p2gift.keeg.uk";
-// The product page the human picks on. approve_pitch returns it; the
-// Agent passes it to the user and never browses or builds it.
-export const PRODUCT_PAGE_URL = `${SITE}/`;
+
 
 // Session ids are all-digit, 10 digits, first digit non-zero (owner
 // decision 2026-11-14): the session id IS the order number when the run
@@ -66,7 +66,7 @@ export const DEFAULT_LAYOUT_OPTIONS = [
 ].join("\n");
 export const DEFAULT_ARTWORK_SPECS = [
   "Print artwork for this item — render to these specs:",
-  "- File: PNG only, under 15 MB",
+  "- File: PNG only, 3 MB or smaller",
   "- Background: transparent",
   "- Color: single color",
   "- Content: text only (no logo, no images)",
@@ -117,14 +117,14 @@ export function publicSession(row) {
 }
 
 const NEXT_STEP = {
-  SOURCE_LOADED: "approve_pitch — settle the pitch wording with the user, then lock it.",
-  PITCH_LOCKED: "select_gift — the user picks in the dialog (the product page is view-only reference); pass the pick in the 'I pick N — …' shape.",
-  GIFT_LOCKED: "approve_layout — render the layout mockups locally, the user picks one, lock it to receive ARTWORK_SPECS.",
-  LAYOUT_LOCKED: "approve_artwork — render the Final Print Artwork locally to ARTWORK_SPECS, the user approves it, then submit the file.",
-  ARTWORK_LOCKED: "prepare_checkout — issue the checkout link from the locked session. No order-details stage: quantity defaults to 1 unless set_order_details locked one; Stripe collects the delivery address at payment.",
-  DETAILS_LOCKED: "prepare_checkout — issue the checkout link from the locked session.",
-  CHECKOUT_ISSUED: "get_order_status — poll until the store's webhook settles the order.",
-  ORDER_CONFIRMED: "Done — the confirmation has been delivered. Later checks use lookup_order.",
+  SOURCE_LOADED: "submit (stage: pitch) — settle the pitch wording with the user, then lock it.",
+  PITCH_LOCKED: "submit (stage: product) — the user picks in the dialog; pass the issued pick string in the 'I pick N — …' shape.",
+  GIFT_LOCKED: "submit (stage: layout) — render the layout mockups locally, the user picks one, lock it to receive ARTWORK_SPECS.",
+  LAYOUT_LOCKED: "submit (stage: artwork) — render the Final_Print_Artwork locally to ARTWORK_SPECS, the user approves it, then submit the file.",
+  ARTWORK_LOCKED: "pay — issue the payment link from the locked session. Quantity, address and card are entered on the linked page; nothing is asked in the dialog.",
+  DETAILS_LOCKED: "pay — issue the payment link from the locked session.",
+  CHECKOUT_ISSUED: "status — read the order state; the call waits server-side while payment settles.",
+  ORDER_CONFIRMED: "Done — the confirmation has been delivered. Later checks use status with the order no. + token.",
 };
 
 function wrongState(row, tool) {
@@ -140,7 +140,7 @@ async function loadRow(env, sessionId) {
   const row = await env.DB.prepare("SELECT * FROM wizard_sessions WHERE id = ?")
     .bind(String(sessionId ?? ""))
     .first();
-  if (!row) return { error: `Unknown wizard session: ${sessionId ?? "(missing)"}. Start one with start_session.` };
+  if (!row) return { error: `Unknown session: ${sessionId ?? "(missing)"}. Open one with start.` };
   return { row };
 }
 
@@ -211,7 +211,7 @@ export async function startSession(env, { pitchCandidates, customer }) {
     state: row.state,
     next: NEXT_STEP.SOURCE_LOADED,
     instruction:
-      "Pitch candidates recorded. Settle the exact pitch wording with the user — the locked text prints character for character — then call approve_pitch.",
+      "Pitch candidates recorded. Settle the exact pitch wording with the user — the locked text prints character for character — then submit it (stage: pitch).",
   };
 }
 
@@ -222,16 +222,16 @@ export async function approvePitch(env, { sessionId, pitchText }) {
   if (row.state === "PITCH_LOCKED" && row.pitch_text === String(pitchText ?? "").trim()) {
     return pitchLockedReply(env, row);
   }
-  if (row.state !== "SOURCE_LOADED") return wrongState(row, "approve_pitch");
+  if (row.state !== "SOURCE_LOADED") return wrongState(row, "submit (stage: pitch)");
 
   const text = String(pitchText ?? "").trim();
-  if (!text) return { error: "approve_pitch needs the settled pitch_text — the exact wording the user approved." };
+  if (!text) return { error: "submit (stage: pitch) needs the settled pitch_text — the exact wording the user approved." };
   if (!hasPrintableText(text)) {
     return {
       rejected: true,
       stage: "pitch",
       reasons: ["The pitch has no printable text (letters or numbers) — it cannot be printed on a gift."],
-      next: "Re-extract the pitch from the source with the user and call approve_pitch again.",
+      next: "Re-extract the pitch from the source with the user and submit it again (stage: pitch).",
     };
   }
   // The pitch locks verbatim, exactly as the user settled it — no
@@ -250,9 +250,8 @@ async function pitchLockedReply(env, row) {
     state: row.state,
     pitch_text: row.pitch_text,
     pitch_form: row.pitch_form,
-    product_page_url: PRODUCT_PAGE_URL,
     instruction:
-      "Pitch locked — it prints exactly as locked. Show the user the product_page_url as view-only reference; the gift pick itself happens in the dialog. Then call select_gift with the pick in the shape \"I pick N — <gift item name>[, Color: <color>]\" formed from the user's tap — the name must be the item's exact server name (the pick string issued in service_info); the server rejects any other name.",
+      "Pitch locked — it prints exactly as locked. Present the items from the start reply in the dialog, under their service names only; the user taps one. Then submit the pick (stage: product) in the issued shape \"I pick N — <name>[, Color: <color>]\" — the name must be the item's exact service name (the pick string issued at start); the service rejects any other name.",
     next: NEXT_STEP.PITCH_LOCKED,
   };
 }
@@ -265,7 +264,7 @@ export async function selectGift(env, { sessionId, pick }) {
   if (!parsed) {
     return {
       error:
-        'select_gift needs the pick in the shape "I pick N — <gift item name>[, Color: <color>]" — form it from the user\'s tap in the dialog.',
+        'submit (stage: product) needs the pick in the shape "I pick N — <name>[, Color: <color>]" — form it from the user\'s tap in the dialog.',
     };
   }
   if (row.state !== "PITCH_LOCKED") {
@@ -279,7 +278,7 @@ export async function selectGift(env, { sessionId, pick }) {
         return giftLockedReply(env, row, lockedEntry.item, lockedEntry.product);
       }
     }
-    return wrongState(row, "select_gift");
+    return wrongState(row, "submit (stage: product)");
   }
 
   const { items } = await loadInventory(env);
@@ -365,7 +364,7 @@ function giftLockedReply(env, row, item, product) {
     layout_options: product.layout_options || DEFAULT_LAYOUT_OPTIONS,
     themed_base_image: product.image_key ? `${SITE}/images/${product.image_key}` : null,
     instruction:
-      "Gift locked. Render the layout mockups locally ON the themed_base_image: download it and apply the locked pitch_text onto the product itself, in the locked variant_label's color — one mockup per layout option (the layout_options above, the item's real A/B/C descriptions), so they are clean mockups of the real product, never bare text-layout panels. The words never change. Present the mockups for the user's pick. Then call approve_layout with the picked letter.",
+      "Product locked. Render the layout mockups locally ON the themed_base_image: download it and apply the locked pitch_text onto the product itself, in the locked variant_label's color — one mockup per layout option (the layout_options above, the item's real A/B/C descriptions), so they are clean mockups of the real product, never bare text-layout panels. The words never change. Present the mockups for the user's pick. Then submit the picked letter (stage: layout).",
     next: NEXT_STEP.GIFT_LOCKED,
   };
 }
@@ -376,7 +375,7 @@ export async function approveLayout(env, { sessionId, layout }) {
   if (error) return { error };
   const wanted = String(layout ?? "").trim().toUpperCase();
   if (row.state === "LAYOUT_LOCKED" && row.layout === wanted) return layoutLockedReply(env, row);
-  if (row.state !== "GIFT_LOCKED") return wrongState(row, "approve_layout");
+  if (row.state !== "GIFT_LOCKED") return wrongState(row, "submit (stage: layout)");
 
   const product = await env.DB.prepare(
     "SELECT layout_options, artwork_specs FROM products WHERE id = ?",
@@ -410,7 +409,7 @@ async function layoutLockedReply(env, row) {
     layout_options: product?.layout_options || DEFAULT_LAYOUT_OPTIONS,
     artwork_specs: product?.artwork_specs || DEFAULT_ARTWORK_SPECS,
     instruction:
-      "Layout locked. Render the Final Print Artwork locally to these ARTWORK_SPECS, show it to the user, and on their approval call approve_artwork with the file. The specs are advisory — no automated check runs on the file.",
+      "Layout locked. Render the Final_Print_Artwork locally to these ARTWORK_SPECS, show it to the user, and on their approval submit the file (stage: artwork). The specs are advisory — no automated check runs on the file.",
     next: NEXT_STEP.LAYOUT_LOCKED,
   };
 }
@@ -427,11 +426,11 @@ export async function approveArtwork(env, { sessionId, artworkBase64, artworkNam
       next: NEXT_STEP.ARTWORK_LOCKED,
     };
   }
-  if (row.state !== "LAYOUT_LOCKED") return wrongState(row, "approve_artwork");
+  if (row.state !== "LAYOUT_LOCKED") return wrongState(row, "submit (stage: artwork)");
   if (!env?.FILES) return { error: "The private files bucket is not available to the MCP server." };
 
   const clean = String(artworkBase64 ?? "").replace(/\s+/g, "");
-  if (!clean) return { error: "approve_artwork needs the approved Final Print Artwork file (base64)." };
+  if (!clean) return { error: "submit (stage: artwork) needs the approved Final_Print_Artwork file (base64)." };
   let bytes;
   try {
     const bin = atob(clean);
@@ -450,51 +449,8 @@ export async function approveArtwork(env, { sessionId, artworkBase64, artworkNam
     state: updated.state,
     artwork: { key, name, size: bytes.length },
     instruction:
-      "Artwork locked — parked exactly as submitted; the operator reviews it in Admin. Call prepare_checkout to issue the checkout link — there is no order-details stage: Stripe collects the delivery address at payment.",
+      "Artwork locked — filed exactly as submitted; the operator reviews it in Admin. Call pay to issue the payment link. Quantity, address and card are entered on the linked page; nothing is asked in the dialog.",
     next: NEXT_STEP.ARTWORK_LOCKED,
-  };
-}
-
-// ── Stage 6 · Order details lock ────────────────────────────────────
-export function normalizeShipping(s) {
-  const shipping = {
-    name: String(s?.name ?? "").trim(),
-    line1: String(s?.line1 ?? "").trim(),
-    line2: String(s?.line2 ?? "").trim() || null,
-    city: String(s?.city ?? "").trim(),
-    state: String(s?.state ?? "").trim() || null,
-    postal: String(s?.postal ?? s?.postal_code ?? "").trim(),
-    country: String(s?.country ?? "").trim().toUpperCase(),
-  };
-  const reasons = [];
-  if (!shipping.name || !shipping.line1 || !shipping.city || !shipping.postal) {
-    reasons.push("Delivery needs name, address line 1, city, and postal code — all of them, none invented.");
-  }
-  if (!/^[A-Z]{2}$/.test(shipping.country)) {
-    reasons.push(`Delivery country must be a 2-letter code — got "${s?.country ?? ""}".`);
-  }
-  return { shipping, reasons };
-}
-
-export async function setOrderDetails(env, { sessionId, quantity, shipping }) {
-  const { row, error } = await loadRow(env, sessionId);
-  if (error) return { error };
-  if (row.state !== "ARTWORK_LOCKED") return wrongState(row, "set_order_details");
-  const qty = Number(quantity);
-  const { shipping: normalized, reasons } = normalizeShipping(shipping);
-  if (!Number.isInteger(qty) || qty < 1 || qty > 99) {
-    reasons.unshift(`Quantity must be a whole number between 1 and 99 — got "${quantity}".`);
-  }
-  if (reasons.length) return { rejected: true, stage: "order_details", reasons, session: publicSession(row) };
-  await patch(env, row.id, { state: "DETAILS_LOCKED", quantity: qty, shipping: JSON.stringify(normalized) });
-  const { row: updated } = await loadRow(env, row.id);
-  return {
-    session: publicSession(updated),
-    state: updated.state,
-    quantity: qty,
-    shipping: normalized,
-    instruction: "Order details locked. Call prepare_checkout to issue the checkout link from the locked session.",
-    next: NEXT_STEP.DETAILS_LOCKED,
   };
 }
 
