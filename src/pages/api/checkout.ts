@@ -7,7 +7,7 @@ import {
   type ProductVariant,
   type ProductExtra,
 } from '../../features/products/variants';
-import { parsePublicId } from '../../features/ids/publicId.ts';
+import { isNumericId, parsePublicId } from '../../features/ids/publicId.ts';
 import {
   claimOrderIdentity,
   deleteGuestAccessIfUnsettled,
@@ -286,10 +286,16 @@ export const POST: APIRoute = async ({ request, cookies, url, redirect }) => {
   // manual purchase): an open agent prefill needs the browser sign-in
   // first, and the cart must still hold only the selected gift (its
   // quantity is the buyer's to change).
+  let wizardOrderId: string | undefined;
   if (!productPublicId) {
     const gate = await gateBlockFor(request, cookies.get('prefill')?.value, 'form');
     if (gate.block) return gate.block;
     if (gate.rec) {
+      // A wizard prefill claims its session's number as the order number
+      // (session id = order number) when the session id is all-digit.
+      if (gate.rec.sessionId && isNumericId(gate.rec.sessionId)) {
+        wizardOrderId = gate.rec.sessionId;
+      }
       const mismatch = await prefillCartMismatch(gate.rec, lines);
       if (mismatch) return redirect(`/cart?error=${encodeURIComponent(mismatch)}`, 303);
     }
@@ -458,10 +464,11 @@ export const POST: APIRoute = async ({ request, cookies, url, redirect }) => {
       : undefined;
 
   // Claim the order's public identity + guest credential BEFORE provider
-  // handoff: the ord_ id ties reservation → pending payment → settled order,
-  // and the access token is the only thing guest URLs carry. success_url points
-  // at /order/<token>; the webhook stores the ord_ id on the order.
-  const { publicId, accessToken } = await claimOrderIdentity(env.DB);
+  // handoff: the order number ties reservation → pending payment → settled
+  // order, and the access token is the only thing guest URLs carry.
+  // success_url points at /order/<token>; the webhook stores the number on
+  // the order. A wizard checkout claims its session's number (wizardOrderId).
+  const { publicId, accessToken } = await claimOrderIdentity(env.DB, wizardOrderId);
   const items = await withPrefillArtwork(reservationItems(lines));
   const reserved = await reserveInventory(
     env.DB,
@@ -548,6 +555,10 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
   // sign-in before any payment session is created for it.
   const gate = await gateBlockFor(request, prefillCookieToken, 'json');
   if (gate.block) return gate.block;
+  // A wizard prefill claims its session's number as the order number
+  // (session id = order number) when the session id is all-digit.
+  const wizardOrderId =
+    gate.rec?.sessionId && isNumericId(gate.rec.sessionId) ? gate.rec.sessionId : undefined;
 
   // Early reject on the declared size, then enforce the cap on the bytes we
   // actually read — a missing/lying content-length header can't slip past.
@@ -886,7 +897,8 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
   }
 
   if (method === 'lightning' && shippingOn && shipTo && chosen && inAppQuote) {
-    const { publicId: lnPublicId, accessToken: lnAccessToken } = await claimOrderIdentity(env.DB);
+    const { publicId: lnPublicId, accessToken: lnAccessToken } =
+      await claimOrderIdentity(env.DB, wizardOrderId);
     const lnReserved = await reserveInventory(
       env.DB,
       lnPublicId,
@@ -976,7 +988,7 @@ async function handleJsonCheckout(request: Request, url: URL): Promise<Response>
     }
   }
 
-  const { publicId, accessToken } = await claimOrderIdentity(env.DB);
+  const { publicId, accessToken } = await claimOrderIdentity(env.DB, wizardOrderId);
   const provider = await getPaymentProvider(method);
   const items = await applyPrefillByToken(env.DB, prefillCookieToken, reservationItems(lines));
   const reserved = await reserveInventory(

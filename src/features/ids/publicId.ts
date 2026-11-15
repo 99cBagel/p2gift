@@ -46,6 +46,40 @@ export function generatePublicId(kind: PublicIdKind): string {
 }
 
 /**
+ * All-digit numbers (owner decision 2026-11-14): order numbers and wizard
+ * session ids are 10 digits, first digit non-zero — one number per wizard
+ * run, because a wizard order claims its session's number as its order
+ * number (see claimOrderIdentity). Digits only, for ease of use: read,
+ * typed, and spoken references never mix letters in. Prefixed IDs minted
+ * earlier (ord_…, ses_…) stay valid for the records that carry them.
+ */
+export const NUMERIC_ID_RE = /^[1-9][0-9]{9}$/;
+
+export function isNumericId(value: unknown): value is string {
+  return typeof value === 'string' && NUMERIC_ID_RE.test(value.trim());
+}
+
+/** A fresh 10-digit numeric ID (uniform digits; no leading zero). */
+export function generateNumericId(): string {
+  let out = '';
+  const buf = new Uint8Array(32);
+  crypto.getRandomValues(buf);
+  let i = 0;
+  while (out.length < 10) {
+    if (i >= buf.length) {
+      crypto.getRandomValues(buf);
+      i = 0;
+    }
+    const b = buf[i++];
+    if (b >= 250) continue; // 250 = 25 × 10 keeps b % 10 uniform
+    const d = b % 10;
+    if (out.length === 0 && d === 0) continue;
+    out += String(d);
+  }
+  return out;
+}
+
+/**
  * Normalize + strictly validate a public ID of the expected kind.
  * Returns the canonical lowercase form, or null when the prefix, length, or
  * alphabet is wrong — a variant ID can never pass where a product ID is
@@ -63,6 +97,8 @@ export function parsePublicId(value: unknown, kind: PublicIdKind): string | null
 
 /** The bare 10-char token — the customer-facing order reference. */
 export function publicIdToken(publicId: string, kind: PublicIdKind): string | null {
+  // A numeric order number is already the whole reference — no prefix to strip.
+  if (kind === 'order' && isNumericId(publicId)) return publicId.trim();
   const parsed = parsePublicId(publicId, kind);
   return parsed ? parsed.slice(PUBLIC_ID_PREFIXES[kind].length + 1) : null;
 }
@@ -81,12 +117,23 @@ export function isLegacyPublicId(value: unknown): value is string {
   return LEGACY_HEX32_RE.test(v) || LEGACY_UUID_RE.test(v);
 }
 
-/** Accepts the new prefixed form or a preserved legacy shape (orders/refunds). */
+/** Accepts the prefixed form, a preserved legacy shape, or (orders only) the all-digit number. */
 export function parseOrderOrLegacyPublicId(value: unknown, kind: 'order' | 'refund'): string | null {
   const prefixed = parsePublicId(value, kind);
   if (prefixed) return prefixed;
+  if (kind === 'order' && isNumericId(value)) return (value as string).trim();
   if (isLegacyPublicId(value)) return (value as string).trim().toLowerCase();
   return null;
+}
+
+/**
+ * Current-format order identity: a prefixed ord_… ID or an all-digit order
+ * number. Both are claimed in the guest-access registry at checkout, so both
+ * carry a revocable access token. Legacy shapes are NOT current — a legacy
+ * order's public ID is itself its guest link, with no token to rotate.
+ */
+export function isCurrentOrderId(value: unknown): value is string {
+  return parsePublicId(value, 'order') !== null || isNumericId(value);
 }
 
 /** Rendered width of a current-format ID: prefix + separator + token. */

@@ -61,6 +61,7 @@ import { shouldSendCustomerOrderEmail } from '../../../../features/email/orderPo
 import { getPaymentProvider, type PaymentMethod } from '../../../../features/payments';
 import { formatPrice } from '../../../../config';
 import {
+  isCurrentOrderId,
   parseOrderOrLegacyPublicId,
   parsePublicId,
   generatePublicId,
@@ -176,7 +177,7 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
     if (!shouldSendCustomerOrderEmail(existing.payment_method)) {
       return fail('Demo orders never email customers, so their link cannot be reissued.');
     }
-    if (!existing.public_id?.startsWith('ord_')) {
+    if (!isCurrentOrderId(existing.public_id)) {
       // A legacy order's guest link IS its preserved public ID — there is no
       // registry token to rotate.
       return fail('This order predates revocable guest links and cannot be reissued.');

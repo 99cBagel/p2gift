@@ -24,7 +24,7 @@ import {
 import { shouldSendCustomerOrderEmail } from '../../../features/email/orderPolicy';
 import RefundPanel from '../../../features/refunds/RefundPanel.astro';
 import { formatWeight } from '../../../features/shipping/weight';
-import { parseOrderOrLegacyPublicId } from '../../../features/ids/publicId';
+import { isCurrentOrderId, parseOrderOrLegacyPublicId } from '../../../features/ids/publicId';
 import {
   listFilesForOrder,
   formatFileSize,
@@ -125,11 +125,12 @@ const parcelWeightValue =
 const trackUrl = trackingUrl(order.tracking_carrier, order.tracking_number);
 const error = Astro.url.searchParams.get('error');
 const noticeMsg = Astro.url.searchParams.get('notice');
-// Reissue is offered only where it can work: a settled ord_ order with an
-// email on a rail that sends customer email. The token itself is never shown.
+// Reissue is offered only where it can work: a settled current-format order
+// (ord_… or all-digit number) with an email on a rail that sends customer
+// email. The token itself is never shown.
 const canReissue =
   !!order.email &&
-  !!order.public_id?.startsWith('ord_') &&
+  isCurrentOrderId(order.public_id) &&
   shouldSendCustomerOrderEmail(order.payment_method);
 const itemsTotalCents = items.reduce((sum, it) => sum + it.price_cents * it.quantity, 0);
 // Older orders (placed before line-item capture) may have no items; flag any

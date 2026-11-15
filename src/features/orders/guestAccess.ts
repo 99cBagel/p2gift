@@ -1,6 +1,11 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { generateAccessToken, isAccessToken } from '../ids/token.ts';
-import { generatePublicId, isPublicIdConflict } from '../ids/publicId.ts';
+import {
+  generateNumericId,
+  isLegacyPublicId,
+  isNumericId,
+  isPublicIdConflict,
+} from '../ids/publicId.ts';
 import { guestLinkReissueKind } from '../email/outboxStore.ts';
 
 /**
@@ -24,16 +29,24 @@ export interface GuestAccess {
 }
 
 /**
- * Claim a checkout's whole identity at once: a fresh ord_ public ID plus its
- * guest access token, inserted as the registry row. BOTH values regenerate on
- * a unique conflict — the registry PK is the order public id, so retrying only
- * the token could never resolve an order-id collision.
+ * Claim a checkout's whole identity at once: an all-digit order number plus
+ * its guest access token, inserted as the registry row. BOTH values
+ * regenerate on a unique conflict — the registry PK is the order public id,
+ * so retrying only the token could never resolve an order-id collision.
+ *
+ * A wizard checkout passes its session id as `preferredId`: session ids are
+ * the same all-digit shape, so the order claims the session's number and the
+ * run carries ONE number end to end (session id = order number). If that
+ * number is already claimed (a second paid checkout from one session), the
+ * claim falls back to a fresh number for the extra order.
  */
 export async function claimOrderIdentity(
   db: D1Database,
+  preferredId?: string,
 ): Promise<{ publicId: string; accessToken: string }> {
   for (let i = 0; i < 3; i++) {
-    const publicId = generatePublicId('order');
+    const publicId =
+      i === 0 && preferredId && isNumericId(preferredId) ? preferredId.trim() : generateNumericId();
     const accessToken = generateAccessToken();
     try {
       await db
@@ -140,7 +153,8 @@ export async function guestOrderUrl(
   baseUrl: string,
 ): Promise<string | null> {
   if (!orderPublicId) return null;
-  if (!orderPublicId.startsWith('ord_')) return `${baseUrl}/order/${orderPublicId}`;
+  // Legacy orders predate the registry: their public ID is itself the link.
+  if (isLegacyPublicId(orderPublicId)) return `${baseUrl}/order/${orderPublicId}`;
   const access = await getGuestAccess(db, orderPublicId);
   return access ? `${baseUrl}/order/${access.access_token}` : null;
 }

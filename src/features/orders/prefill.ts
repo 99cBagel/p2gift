@@ -31,6 +31,7 @@ export interface PrefillShipping {
 
 export interface PrefillRecord {
   token: string;
+  sessionId: string | null;
   lines: PrefillLine[];
   artworkKey: string | null;
   artworkName: string | null;
@@ -43,6 +44,7 @@ export interface PrefillRecord {
 
 interface PrefillRow {
   token: string;
+  session_id: string | null;
   lines: string;
   artwork_key: string | null;
   artwork_name: string | null;
@@ -58,7 +60,7 @@ export async function getOpenPrefill(db: D1Database, token: string): Promise<Pre
   if (!token || typeof token !== 'string') return null;
   const row = await db
     .prepare(
-      `SELECT token, lines, artwork_key, artwork_name, artwork_size, shipping, total_cents, status, expires_at
+      `SELECT token, session_id, lines, artwork_key, artwork_name, artwork_size, shipping, total_cents, status, expires_at
          FROM prefill_carts
         WHERE token = ? AND status = 'open' AND expires_at > datetime('now')`,
     )
@@ -68,6 +70,7 @@ export async function getOpenPrefill(db: D1Database, token: string): Promise<Pre
   try {
     return {
       token: row.token,
+      sessionId: row.session_id,
       lines: JSON.parse(row.lines) as PrefillLine[],
       artworkKey: row.artwork_key,
       artworkName: row.artwork_name,

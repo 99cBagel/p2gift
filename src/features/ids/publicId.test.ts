@@ -7,6 +7,9 @@ import {
   publicIdToken,
   isLegacyPublicId,
   parseOrderOrLegacyPublicId,
+  generateNumericId,
+  isNumericId,
+  isCurrentOrderId,
   type PublicIdKind,
 } from './publicId';
 
@@ -81,5 +84,48 @@ describe('legacy shapes', () => {
     expect(parseOrderOrLegacyPublicId(hex32, 'order')).toBe(hex32);
     expect(parseOrderOrLegacyPublicId(uuid, 'refund')).toBe(uuid);
     expect(parseOrderOrLegacyPublicId('42', 'order')).toBeNull();
+  });
+});
+
+describe('numeric ids (order numbers / wizard session ids)', () => {
+  it('generateNumericId emits exactly 10 digits, first non-zero', () => {
+    for (let i = 0; i < 200; i++) {
+      expect(generateNumericId()).toMatch(/^[1-9][0-9]{9}$/);
+    }
+  });
+
+  it('does not repeat across a batch', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 1000; i++) seen.add(generateNumericId());
+    expect(seen.size).toBe(1000);
+  });
+
+  it('isNumericId accepts the shape and rejects lookalikes', () => {
+    expect(isNumericId('1234567890')).toBe(true);
+    expect(isNumericId('0123456789')).toBe(false); // leading zero
+    expect(isNumericId('123456789')).toBe(false); // too short
+    expect(isNumericId('12345678901')).toBe(false); // too long
+    expect(isNumericId('12345abcde')).toBe(false);
+    expect(isNumericId('ord_h5tm8qp3vn')).toBe(false);
+    expect(isNumericId(1234567890)).toBe(false);
+    expect(isNumericId(null)).toBe(false);
+  });
+
+  it('parseOrderOrLegacyPublicId accepts numeric order numbers, not for refunds', () => {
+    expect(parseOrderOrLegacyPublicId('1234567890', 'order')).toBe('1234567890');
+    expect(parseOrderOrLegacyPublicId('1234567890', 'refund')).toBeNull();
+  });
+
+  it('publicIdToken returns a numeric order number whole', () => {
+    expect(publicIdToken('1234567890', 'order')).toBe('1234567890');
+    expect(publicIdToken('1234567890', 'product')).toBeNull();
+  });
+
+  it('isCurrentOrderId covers both current formats, not legacy shapes', () => {
+    expect(isCurrentOrderId('ord_h5tm8qp3vn')).toBe(true);
+    expect(isCurrentOrderId('1234567890')).toBe(true);
+    expect(isCurrentOrderId('a'.repeat(32))).toBe(false);
+    expect(isCurrentOrderId('123e4567-e89b-42d3-a456-426614174000')).toBe(false);
+    expect(isCurrentOrderId(null)).toBe(false);
   });
 });

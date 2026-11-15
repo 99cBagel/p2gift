@@ -31,10 +31,29 @@ export const SITE = "https://p2gift.keeg.uk";
 // Agent passes it to the user and never browses or builds it.
 export const PRODUCT_PAGE_URL = `${SITE}/`;
 
-const CROCKFORD = "0123456789abcdefghjkmnpqrstvwxyz";
+// Session ids are all-digit, 10 digits, first digit non-zero (owner
+// decision 2026-11-14): the session id IS the order number when the run
+// settles — the store claims this number as the order's public id at
+// checkout — so the whole run carries one easy-to-use number. Mirrors
+// generateNumericId in src/features/ids/publicId.ts; keep the two in sync.
+// Sessions minted earlier carry ses_… ids and stay valid.
 function newSessionId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
-  return "ses_" + [...bytes].map((b) => CROCKFORD[b & 0x1f]).join("");
+  let out = "";
+  const buf = new Uint8Array(32);
+  crypto.getRandomValues(buf);
+  let i = 0;
+  while (out.length < 10) {
+    if (i >= buf.length) {
+      crypto.getRandomValues(buf);
+      i = 0;
+    }
+    const b = buf[i++];
+    if (b >= 250) continue; // 250 = 25 × 10 keeps b % 10 uniform
+    const d = b % 10;
+    if (out.length === 0 && d === 0) continue;
+    out += String(d);
+  }
+  return out;
 }
 
 // Mirrors src/features/products/wizardDefaults.ts — mcp-server is
@@ -170,12 +189,22 @@ export async function startSession(env, { pitchCandidates, customer }) {
   const candidates = Array.isArray(pitchCandidates)
     ? pitchCandidates.map((c) => String(c ?? "").trim()).filter(Boolean)
     : [];
-  const id = newSessionId();
-  await env.DB.prepare(
-    "INSERT INTO wizard_sessions (id, state, pitch_candidates, customer) VALUES (?, 'SOURCE_LOADED', ?, ?)",
-  )
-    .bind(id, candidates.length ? JSON.stringify(candidates) : null, customer ? JSON.stringify(customer) : null)
-    .run();
+  // Mint + insert with collision retry — the PK is the authority.
+  let id = null;
+  for (let attempt = 0; attempt < 5 && !id; attempt++) {
+    const candidate = newSessionId();
+    try {
+      await env.DB.prepare(
+        "INSERT INTO wizard_sessions (id, state, pitch_candidates, customer) VALUES (?, 'SOURCE_LOADED', ?, ?)",
+      )
+        .bind(candidate, candidates.length ? JSON.stringify(candidates) : null, customer ? JSON.stringify(customer) : null)
+        .run();
+      id = candidate;
+    } catch (err) {
+      if (!/UNIQUE/i.test(String(err?.message ?? err))) throw err;
+    }
+  }
+  if (!id) return { error: "Could not start a session — please retry." };
   const { row } = await loadRow(env, id);
   return {
     session: publicSession(row),

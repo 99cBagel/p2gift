@@ -9,7 +9,7 @@ import {
   sweepAbandonedGuestAccess,
   guestOrderUrl,
 } from '../../src/features/orders/guestAccess.ts';
-import { parsePublicId } from '../../src/features/ids/publicId.ts';
+import { isNumericId } from '../../src/features/ids/publicId.ts';
 import { isAccessToken } from '../../src/features/ids/token.ts';
 
 const mf = new Miniflare({
@@ -47,12 +47,20 @@ try {
 
   // Claim at checkout: BOTH halves minted together; token resolves; bare id never.
   const { publicId: orderPublicId, accessToken: token } = await claimOrderIdentity(db);
-  assert.ok(parsePublicId(orderPublicId, 'order'), 'claimed id is a valid ord_');
+  assert.ok(isNumericId(orderPublicId), 'claimed id is an all-digit order number');
   assert.ok(isAccessToken(token), 'issued token is canonical');
   const resolved = await resolveAccessToken(db, token);
   assert.equal(resolved?.order_public_id, orderPublicId);
-  assert.equal(await resolveAccessToken(db, orderPublicId), null, 'bare ord_ id grants nothing');
+  assert.equal(await resolveAccessToken(db, orderPublicId), null, 'bare order number grants nothing');
   assert.equal(await resolveAccessToken(db, 'otk_invalid'), null);
+
+  // Wizard claim: the session's number is claimed verbatim (session id =
+  // order number); a second claim on the same number falls back to a fresh
+  // number rather than colliding.
+  const wizard = await claimOrderIdentity(db, '5551234567');
+  assert.equal(wizard.publicId, '5551234567', 'wizard order claims the session number');
+  const second = await claimOrderIdentity(db, '5551234567');
+  assert.ok(isNumericId(second.publicId) && second.publicId !== '5551234567', 'second claim falls back to a fresh number');
 
   // Reissue refuses an UNSETTLED checkout (no orders row yet).
   assert.equal(await reissueGuestAccess(db, orderPublicId), null, 'reissue refused while pending');
@@ -106,8 +114,9 @@ try {
   assert.ok(await getGuestAccess(db, fresh.publicId), 'fresh unsettled row survives the sweep');
   assert.ok(await getGuestAccess(db, orderPublicId), 'settled row survives the sweep');
 
-  // Customer-email guest URLs: tokenized for ord_ orders, legacy passthrough,
-  // and null (omit link) when a new order somehow has no registry row.
+  // Customer-email guest URLs: tokenized for current-format orders (ord_ or
+  // all-digit), legacy passthrough, and null (omit link) when a new order
+  // somehow has no registry row.
   const url = await guestOrderUrl(db, orderPublicId, 'https://s.example');
   const current = await getGuestAccess(db, orderPublicId);
   assert.equal(url, `https://s.example/order/${current.access_token}`);
