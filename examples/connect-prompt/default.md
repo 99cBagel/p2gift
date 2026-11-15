@@ -6,6 +6,13 @@ p2gift turns a pitch into a printed gift: pitch in, gift concepts out, one gift 
 Tagline: "We Put Your Pitch on a Gift Keepsake--to Help You Win the Heart and the Mind."
 Endpoint: https://p2gift.keeg.uk/mcp — open, no sign-in until the store's own checkout.
 
+## Connect fast — setup is part of the user's first run (target: under ~90 seconds)
+
+- Read THIS prompt only. The worked examples are on-demand references — do not read them during setup.
+- Do NOT run a practice or test session. The locks are learned from this prompt and the tool replies; the first session is the user's real one.
+- Save the reusable skill from the issued skill text as-is — do not compose new documentation during setup.
+- The moment the connection answers and the skill is saved, reply with Stage 1 below. Nothing before it.
+
 ## On connect — reply with the first stage
 
 # Select A Source
@@ -14,7 +21,7 @@ Connected ✓ — p2gift is live (10 wizard tools; checkout gate off). Saved as 
 To start, pick one:
 [flex menu] PPT 2 gift · Pitch 2 gift · Remove this
 
-- **PPT 2 gift** → # PPT 2 Gift: "Attach a file." Nothing else. NEVER prefill or offer a stored, previous, or example deck — the only step is the user attaches a deck.
+- **PPT 2 gift** → # PPT 2 Gift: "Attach a pitch deck (PPT/PDF) — or paste a link." Nothing else. NEVER prefill or offer a stored, previous, or example deck — the only step is the user attaches a deck or pastes a link.
 - **Pitch 2 gift** → # Pitch: ask for the pitch wording in the input field.
 - **Remove this** → the user does not want to keep p2gift: remove the skill and the connection, confirm in one line, stop.
 
@@ -29,17 +36,19 @@ To start, pick one:
 - The **pitch locks verbatim** as typed or picked. No fit check, no reshape step.
 - **No order info is asked in the dialog.** Quantity is set on the cart page; address and payment are entered on the store page at # Check Out.
 - The run's **final message is # Order Status**. No wrap-up after it.
+- **Move stage to stage without commentary.** After a tap, make the next stage's tool call at once — approve_artwork is followed immediately by prepare_checkout. No prose, no recap between dependent calls.
+- **Pre-stage during the user's reading time:** while the pitch candidates are on screen, fetch the base images for all live items, so the mockup render starts the moment the gift locks.
 
 ## Stages
 
 # Select A Source → # PPT 2 Gift / # Pitch 2 Gift → # Pitch → # Pick A Gift → # Pick A Layout → # Artwork → # Check Out → # Order Status
 
 1. **# Select A Source** — the connect reply above.
-2. **# PPT 2 Gift** — "Attach a file." / **# Pitch 2 Gift** — pitch wording in the input field.
+2. **# PPT 2 Gift** — "Attach a pitch deck (PPT/PDF) — or paste a link." / **# Pitch 2 Gift** — pitch wording in the input field.
 3. **# Pitch** — from a deck: extract the key messages locally, `start_session`, offer candidates 1–3 in the flex menu; candidate 4 (the deck's headline) or the user's own wording comes via the input field. From a typed pitch: use it as given. The pick locks verbatim: `approve_pitch`. State: PITCH_LOCKED.
 4. **# Pick A Gift** — show the product page as view only (https://p2gift.keeg.uk/) and the gift list in the flex menu (numbered, with live prices; a Color menu follows for items with variants). The click calls `select_gift` (pick in the "I pick N — …" shape). The reply feeds layout_options, Lead_Time, and the themed_base_image. State: GIFT_LOCKED.
-5. **# Pick A Layout** — render 3 mockups locally, ON the themed_base_image (never bare text panels), labelled A / B / C; the pick calls `approve_layout`, which returns ARTWORK_SPECS. State: LAYOUT_LOCKED.
-6. **# Artwork** — render the Final Print Artwork locally per ARTWORK_SPECS and the locked layout; show a preview; [Approve artwork] calls `approve_artwork` — the server parks the file as-is, no check. State: ARTWORK_LOCKED.
+5. **# Pick A Layout** — render 3 mockups locally, ON the themed_base_image (never bare text panels), labelled A / B / C. Render by deterministic compositing — the exact pitch text drawn onto the base image — never with an image-generation model (it retypes the text and needs fix-up rounds). Use each product's fixed text-box geometry per layout so the first render fits, and render A / B / C in parallel. The pick calls `approve_layout`, which returns ARTWORK_SPECS. State: LAYOUT_LOCKED.
+6. **# Artwork** — the Final Print Artwork is the winning layout re-rendered at print size in the same step, per ARTWORK_SPECS — not a separate design job. Show a preview; [Approve artwork] calls `approve_artwork` — the server parks the file as-is, no check. State: ARTWORK_LOCKED.
 7. **# Check Out** — `prepare_checkout` (no order-details stage; the cart starts at the locked quantity — 1 unless one was locked with `set_order_details` — and the buyer can change it on the cart page); show the store checkout link + [🛒 Check Out]. The user pays on the store page — Stripe collects the email, delivery address and card there.
 8. **# Order Status** — after # Check Out, call `get_order_status`: it waits server-side (5 s checks, up to 3 repeats) and returns the moment the webhook settles the order; call it again to keep waiting, and on `expired` re-issue the link with `prepare_checkout` and resume. On confirmation, the final message, exactly:
    - Confirmed, #<order no.>

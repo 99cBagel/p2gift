@@ -8,6 +8,8 @@ Turn a pitch (or a PPT deck) into one printed gift, stage by stage, without leav
 2. Read the **connect prompt** first — resource `p2gift://examples/connect-prompt/default.md`, also the `p2gift-connect` prompt. It is the full protocol: stages, terms, tool table, guardrails. **The connect prompt wins any disagreement with this file.**
 3. Reply with the connect prompt's first stage (# Select A Source, flex menu) — nothing before it.
 
+**Connect fast (setup is part of the user's first run — target under ~90 seconds):** read the connect prompt only — the worked examples are on-demand references, not setup reading. Never run a practice or test session; the first session is the user's real one. Save this skill as issued; do not compose new documentation during setup.
+
 ## Included documents (by reference — never copy their content into this skill)
 
 - **Connect prompt** — `examples/connect-prompt/default.md` in the p2gift repo; MCP resource `p2gift://examples/connect-prompt/default.md`. The protocol.
@@ -22,16 +24,18 @@ Turn a pitch (or a PPT deck) into one printed gift, stage by stage, without leav
 - Each reply: the # title + a minimal telegram-style body. No extra prose.
 - Bounded picks are always a flex menu; the user clicks in the dialog only. Links are view reference only.
 - Open input (pitch wording) is typed in the chat input field; decks arrive via attach.
-- After "PPT 2 gift", the only step is "Attach a file." — never prefill or offer any stored, previous, or example deck.
+- After "PPT 2 gift", the only step is "Attach a pitch deck (PPT/PDF) — or paste a link." — never prefill or offer any stored, previous, or example deck.
 - The pitch locks **verbatim**. There is no fit or reshape step.
 - No order details are collected in the dialog: # Check Out shows the store link; quantity is set on the cart page, address and card on the store's Stripe page.
 - The run ends at # Order Status (confirmed, #<order no.> + how to check). Nothing after it.
+- **Move stage to stage without commentary.** After a tap, make the next stage's tool call at once — approve_artwork is followed immediately by prepare_checkout. No prose, no recap between dependent calls.
+- **Pre-stage during the user's reading time:** while the pitch candidates are on screen, fetch the base images for all live items, so the mockup render starts the moment the gift locks.
 
 ## Local craft (the assistant's work — no server call)
 
 - **Pitch distillation**: from a deck, extract the key messages and shape up to 3 candidates (condensed form: 《title》 + noun phrases separated by 、; or a short distinctive phrase). Candidate 4 is the deck's headline, taken via the input field. Never present a candidate as a deck quotation — they are syntheses.
-- **Layout mockups**: render the 3 layout_options ON the themed_base_image fed at the gift lock (in the locked variant's color), one image per option, text exact. Never bare text-layout panels.
-- **Final print artwork**: render the locked pitch in the locked layout to ARTWORK_SPECS (PNG, transparent, single color, text only, under 15 MB). Craft notes: hard edges (no anti-aliased grey halo — snap alpha to fully opaque/transparent); keep the long side near 3200 px so the upload stays reliable.
+- **Layout mockups**: render the 3 layout_options ON the themed_base_image fed at the gift lock (in the locked variant's color), one image per option, text exact. Never bare text-layout panels. Render by deterministic compositing — the exact pitch text drawn onto the base image — never with an image-generation model (it retypes the text and needs fix-up rounds). Use each product's fixed text-box geometry per layout so the first render fits, and render A / B / C in parallel.
+- **Final print artwork**: the winning layout re-rendered at print size in the same step — not a separate design job — to ARTWORK_SPECS (PNG, transparent, single color, text only, under 15 MB). Craft notes: hard edges (no anti-aliased grey halo — snap alpha to fully opaque/transparent); keep the long side near 3200 px so the upload stays reliable.
 
 ## Guardrails
 

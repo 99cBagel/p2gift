@@ -24,7 +24,7 @@ To start, pick one:
 (assistant)
 # PPT 2 Gift
 
-Attach a file.
+Attach a pitch deck (PPT/PDF) — or paste a link.
 
 (user) [attaches Mockup_ISO13485_Consulting.pptx]
 
